@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         GitService.isEnabled.toggle()
     }
 
+    @objc func clearRecentFolders(_ sender: Any?) { RecentFolders.clear() }
+
     @objc func showFinderFavoritesDiagnostic(_ sender: Any?) {
         FinderFavorites.showDiagnostic()
     }

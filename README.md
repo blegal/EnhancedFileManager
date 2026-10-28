@@ -27,7 +27,8 @@ Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https:/
 | Nouveau dossier | ⇧⌘N |
 | Ouvrir | ↩ ou ⌘↓ |
 | Dossier parent | ⌫ ou ⌘↑ |
-| Précédent / Suivant | ⌘[ / ⌘] |
+| Précédent / Suivant | ⌘[ / ⌘] (appui long sur les boutons : historique) |
+| Dossiers récents | Aller › Dossiers récents |
 | Coup d’œil | Espace ou ⌘Y |
 | Panneau suivant / précédent | ⇥ / ⇧⇥ |
 | 1, 2, 3, 4 panneaux | ⌥⌘1 … ⌥⌘4 |

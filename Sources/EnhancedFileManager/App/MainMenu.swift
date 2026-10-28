@@ -1,6 +1,9 @@
 import AppKit
 
 enum MainMenu {
+    /// Fournit le sous-menu « Dossiers récents » (gardé en vie pour toute la durée de l'app).
+    private static let recentProvider = HistoryMenuProvider(kind: .recent) { nil }
+
     private typealias Panel = PanelViewController
 
     static func build() -> NSMenu {
@@ -131,6 +134,10 @@ enum MainMenu {
             item("Plein écran", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ])
 
+        let recentItem = NSMenuItem(title: "Dossiers récents", action: nil, keyEquivalent: "")
+        recentItem.submenu = NSMenu(title: "Dossiers récents")
+        recentItem.submenu?.delegate = recentProvider
+
         submenu("Aller", [
             item("Précédent", #selector(Panel.goBack(_:)), "["),
             item("Suivant", #selector(Panel.goForward(_:)), "]"),
@@ -147,6 +154,7 @@ enum MainMenu {
             item("Même dossier dans l’autre panneau", #selector(Panel.syncOtherPanel(_:)), "=", .command),
             item("Comparer et synchroniser les panneaux…", #selector(Panel.compareWithOtherPanel(_:)), "c", [.command, .control]),
             item("Aller au dossier…", #selector(Panel.goToFolder(_:)), "g", [.command, .shift]),
+            recentItem,
         ])
 
         let window = submenu("Fenêtre", [

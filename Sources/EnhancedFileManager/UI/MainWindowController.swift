@@ -258,6 +258,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private weak var layoutItem: NSMenuToolbarItem?
     private weak var viewModeControl: NSSegmentedControl?
     private weak var gitButton: NSButton?
+    private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self?.activePanel }
+    private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self?.activePanel }
     private weak var terminalButton: NSButton?
     private let workSplit = NSSplitViewController()
     private let terminalController = TerminalPanelController()
@@ -556,8 +558,20 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             return item
         }
         switch identifier {
-        case .back: return button("Précédent", "chevron.left", #selector(PanelViewController.goBack(_:)), navigational: true)
-        case .forward: return button("Suivant", "chevron.right", #selector(PanelViewController.goForward(_:)), navigational: true)
+        case .back, .forward:
+            // Clic : précédent / suivant ; appui long : tout l'historique de l'onglet.
+            let isBack = identifier == .back
+            let item = NSMenuToolbarItem(itemIdentifier: identifier)
+            item.label = isBack ? "Précédent" : "Suivant"
+            item.toolTip = (isBack ? "Précédent" : "Suivant") + " — maintenir pour l’historique"
+            item.image = NSImage(systemSymbolName: isBack ? "chevron.left" : "chevron.right", accessibilityDescription: item.label)
+            item.action = isBack ? #selector(PanelViewController.goBack(_:)) : #selector(PanelViewController.goForward(_:))
+            item.showsIndicator = false
+            item.isNavigational = true
+            let menu = NSMenu()
+            menu.delegate = isBack ? backMenu : forwardMenu
+            item.menu = menu
+            return item
         case .newFolder: return button("Nouveau dossier", "folder.badge.plus", #selector(PanelViewController.newFolder(_:)))
         case .quickLook: return button("Coup d’œil", "eye", #selector(PanelViewController.quickLook(_:)))
         case .trash: return button("Corbeille", "trash", #selector(PanelViewController.moveToTrash(_:)))

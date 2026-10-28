@@ -474,6 +474,7 @@ final class PanelViewController: NSViewController {
 
     private func showCurrentTab() {
         if isSearching { endSearch(reloadListing: false) }
+        if isShown { RecentFolders.record(currentURL) }
         if currentURL.isRemote || !isShown { watcher.stop() } else { watcher.watch(currentURL) }
         breadcrumb.show(currentURL)
         updateTabBar()
