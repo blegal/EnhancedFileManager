@@ -11,8 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.mainMenu = MainMenu.build()
         NSWindow.allowsAutomaticWindowTabbing = true
         let home = openHome(beside: nil)
-        // Barre d'onglets seulement à partir de deux onglets (le système l'affiche alors de lui-même).
-        if home.tabGroup?.isTabBarVisible == true, home.tabbedWindows == nil { home.toggleTabBar(nil) }
+        // Barre d'onglets seulement à partir de deux onglets (le système l'affiche alors de lui-même) :
+        // annule le réglage « toujours afficher » mémorisé par macOS, une fois la fenêtre à l'écran.
+        DispatchQueue.main.async {
+            if home.tabGroup?.isTabBarVisible == true, (home.tabbedWindows?.count ?? 1) <= 1 { home.toggleTabBar(nil) }
+        }
         launched = true
         pendingURLs.forEach { openAnalysis($0, beside: home) }
         pendingURLs = []
