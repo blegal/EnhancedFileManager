@@ -145,6 +145,7 @@ enum MainMenu {
             item("Applications", #selector(Panel.goApplications(_:)), "a", [.command, .shift]),
             separator(),
             item("Même dossier dans l’autre panneau", #selector(Panel.syncOtherPanel(_:)), "=", .command),
+            item("Comparer et synchroniser les panneaux…", #selector(Panel.compareWithOtherPanel(_:)), "c", [.command, .control]),
             item("Aller au dossier…", #selector(Panel.goToFolder(_:)), "g", [.command, .shift]),
         ])
 

@@ -44,6 +44,7 @@ Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https:/
 | Aller au dossier | ⇧⌘G |
 | Rechercher (ce dossier, sous-dossiers, contenu) | ⌘F, Échap pour fermer |
 | Même dossier dans l’autre panneau | ⌘= |
+| Comparer et synchroniser les panneaux | ⌃⌘C |
 | Se connecter au serveur (SFTP, SMB, AFP, NFS, WebDAV) | ⌘K |
 | Terminal intégré | ⌃` |
 | État Git dans les panneaux | ⌃⌘G |

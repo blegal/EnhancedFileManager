@@ -1356,7 +1356,7 @@ extension PanelViewController: NSMenuItemValidation {
             return selectedURLs.contains(where: FileOperationCenter.isArchive) && !(host?.targetPanels(for: self).isEmpty ?? true)
         case #selector(copyToOtherPanel(_:)), #selector(moveToOtherPanel(_:)):
             return hasSelection && !(host?.targetPanels(for: self).isEmpty ?? true)
-        case #selector(syncOtherPanel(_:)):
+        case #selector(syncOtherPanel(_:)), #selector(compareWithOtherPanel(_:)):
             return !(host?.targetPanels(for: self).isEmpty ?? true)
         case #selector(renameSelection(_:)):
             return !selectionIndexes.isEmpty
