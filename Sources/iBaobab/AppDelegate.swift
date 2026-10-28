@@ -65,6 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 520, height: 420)
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.layoutAttribute = .trailing
+        accessory.view = MainActor.assumeIsolated { UpdateStatusButton(bezelStyle: .accessoryBarAction) }
+        window.addTitlebarAccessoryViewController(accessory)
         if let existing = existing ?? windows.last {
             window.setFrame(existing.frame, display: false)
             existing.addTabbedWindow(window, ordered: .above)

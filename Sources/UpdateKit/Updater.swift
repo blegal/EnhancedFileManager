@@ -8,6 +8,18 @@ import AppKit
 package final class Updater: NSObject {
     package static let shared = Updater()
 
+    /// État affiché par `UpdateStatusButton` (barre d'outils, barre de titre).
+    package enum State: Equatable {
+        case idle, checking, available(AppVersion), installing
+    }
+
+    /// Notification envoyée à chaque changement de `state`.
+    package static let stateDidChange = Notification.Name("UpdaterStateDidChange")
+
+    package private(set) var state: State = .idle {
+        didSet { if state != oldValue { NotificationCenter.default.post(name: Self.stateDidChange, object: self) } }
+    }
+
     /// Appelé juste avant de quitter pour installer (sauvegarde de la session, etc.).
     package var beforeRelaunch: (() -> Void)?
 
@@ -17,6 +29,8 @@ package final class Updater: NSObject {
     private var isChecking = false
     private var window: UpdateWindowController?
     private var installTask: Task<Void, Never>?
+    /// Version proposée (refermée par « Plus tard ») : l'indicateur reste vert jusqu'à l'installation.
+    private var pending: Release?
 
     private var info: [String: Any] { Bundle.main.infoDictionary ?? [:] }
     private var repository: String? { info["UpdateRepository"] as? String }
@@ -27,34 +41,41 @@ package final class Updater: NSObject {
     private var assetPrefix: String { ((info["CFBundleExecutable"] as? String) ?? ProcessInfo.processInfo.processName) + "-" }
     package var currentVersion: AppVersion { AppVersion((info["CFBundleShortVersionString"] as? String) ?? "0") }
 
-    /// Vérification discrète au lancement, au plus une fois par jour. Aucune erreur affichée.
+    /// Vérification discrète au lancement. Aucune erreur affichée ; la fenêtre de proposition
+    /// s'ouvre au plus une fois par jour, sinon seul l'indicateur passe au vert.
     package func checkAtLaunch() {
-        if let last = defaults.object(forKey: lastCheckKey) as? Date, Date().timeIntervalSince(last) < 24 * 3600 { return }
+        let recent = (defaults.object(forKey: lastCheckKey) as? Date).map { Date().timeIntervalSince($0) < 24 * 3600 } ?? false
         Task {
             try? await Task.sleep(for: .seconds(5))
-            await check(manual: false)
+            await check(manual: false, quiet: recent)
         }
     }
 
-    /// Menu « Rechercher les mises à jour… ».
+    /// Menu « Rechercher les mises à jour… » et indicateur de la barre de titre.
     @objc package func checkForUpdates(_ sender: Any?) {
         if let window { window.showWindow(nil); return }
+        if let pending { propose(pending); return }
         Task { await check(manual: true) }
     }
 
-    private func check(manual: Bool) async {
+    private func check(manual: Bool, quiet: Bool = false) async {
         guard !isChecking, window == nil, let repository else { return }
         isChecking = true
+        state = .checking
         defer { isChecking = false }
         do {
             let release = try await ReleaseFeed.latest(repository: repository, assetPrefix: assetPrefix)
-            defaults.set(Date(), forKey: lastCheckKey)
+            if !quiet { defaults.set(Date(), forKey: lastCheckKey) }
             if release.version > currentVersion, manual || defaults.string(forKey: skippedKey) != release.version.description {
-                propose(release)
-            } else if manual {
-                alert("\(appName) est à jour.", "La version \(currentVersion) est la plus récente.")
+                pending = release
+                state = .available(release.version)
+                if !quiet { propose(release) }
+            } else {
+                state = .idle
+                if manual { alert("\(appName) est à jour.", "La version \(currentVersion) est la plus récente.") }
             }
         } catch {
+            state = pending.map { .available($0.version) } ?? .idle
             // Dépôt privé ou réseau absent : silence au lancement, message clair à la demande.
             if manual { alert("Impossible de rechercher les mises à jour.", error.localizedDescription) }
         }
@@ -66,6 +87,8 @@ package final class Updater: NSObject {
         controller.onLater = { [weak self] in self?.close() }
         controller.onSkip = { [weak self] in
             self?.defaults.set(release.version.description, forKey: self?.skippedKey ?? "")
+            self?.pending = nil
+            self?.state = .idle
             self?.close()
         }
         controller.onCancel = { [weak self] in self?.installTask?.cancel() }
@@ -80,12 +103,14 @@ package final class Updater: NSObject {
         let closing = window
         window = nil
         closing?.close()
+        if let pending { state = .available(pending.version) }
     }
 
     private func install(_ release: Release) {
         guard let window else { return }
         let target = Bundle.main.bundleURL
         let identifier = Bundle.main.bundleIdentifier ?? ""
+        state = .installing
         installTask = Task {
             do {
                 guard target.pathExtension == "app" else {
@@ -120,10 +145,13 @@ package final class Updater: NSObject {
                 window.showProgress("La mise à jour sera installée en quittant \(appName).", fraction: 1)
             } catch is CancellationError {
                 window.showProposal()
+                state = .available(release.version)
             } catch let error as URLError where error.code == .cancelled {
                 window.showProposal()
+                state = .available(release.version)
             } catch {
                 window.showProposal()
+                state = .available(release.version)
                 let open = alert("La mise à jour a échoué.", error.localizedDescription,
                                  buttons: release.page == nil ? ["OK"] : ["OK", "Ouvrir la page de la version"])
                 if open == .alertSecondButtonReturn, let page = release.page { NSWorkspace.shared.open(page) }

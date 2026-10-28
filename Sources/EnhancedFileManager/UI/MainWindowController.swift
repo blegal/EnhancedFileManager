@@ -1,4 +1,5 @@
 import AppKit
+import UpdateKit
 
 private extension NSToolbarItem.Identifier {
     static let back = NSToolbarItem.Identifier("back")
@@ -17,6 +18,7 @@ private extension NSToolbarItem.Identifier {
     static let quickLook = NSToolbarItem.Identifier("quickLook")
     static let hidden = NSToolbarItem.Identifier("hidden")
     static let connect = NSToolbarItem.Identifier("connect")
+    static let updates = NSToolbarItem.Identifier("updates")
 }
 
 /// Zone des panneaux : dispositions 1, 2, 3 ou 4 panneaux et file des opérations.
@@ -349,7 +351,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             window.center()
         }
 
-        let toolbar = NSToolbar(identifier: "MainToolbar.v6")
+        let toolbar = NSToolbar(identifier: "MainToolbar.v7")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
@@ -604,7 +606,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .sidebarTrackingSeparator, .back, .forward, .flexibleSpace,
-         .viewMode, .diskUsage, .layout, .syncNavigation, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector]
+         .viewMode, .diskUsage, .layout, .syncNavigation, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector, .updates]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -644,6 +646,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         case .hidden: return button("Fichiers cachés", "eye.slash", #selector(AppDelegate.toggleHiddenFiles(_:)))
         case .connect: return button("Se connecter au serveur", "network", #selector(connectToServer(_:)))
         case .inspector: return button("Inspecteur", "sidebar.right", #selector(toggleInspectorPane(_:)))
+        case .updates:
+            let item = NSToolbarItem(itemIdentifier: identifier)
+            item.view = UpdateStatusButton()
+            item.label = "Mises à jour"
+            return item
         case .git, .terminal:
             // Boutons à bascule : leur état (activé / désactivé) est visible dans la barre.
             let isGit = identifier == .git
