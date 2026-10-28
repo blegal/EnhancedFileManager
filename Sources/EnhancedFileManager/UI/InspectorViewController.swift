@@ -5,7 +5,9 @@ import QuickLookThumbnailing
 /// de la sélection du panneau actif, ou du dossier courant si rien n'est sélectionné.
 final class InspectorViewController: NSViewController {
     private let stack = NSStackView()
-    private let preview = NSImageView()
+    /// Aperçu riche (code, PDF, vidéo…) ; son image sert d'icône / miniature par défaut.
+    private let previewPane = PreviewPane()
+    private var preview: NSImageView { previewPane.imageView }
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private var generalGrid = NSGridView()
@@ -17,11 +19,6 @@ final class InspectorViewController: NSViewController {
     private var generation = 0
 
     override func loadView() {
-        preview.imageScaling = .scaleProportionallyUpOrDown
-        preview.wantsLayer = true
-        preview.layer?.cornerRadius = 10
-        preview.layer?.cornerCurve = .continuous
-        preview.layer?.masksToBounds = true
 
         titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingMiddle
@@ -40,10 +37,10 @@ final class InspectorViewController: NSViewController {
         stack.alignment = .leading
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 20, right: 16)
-        for view in [preview, titleLabel, subtitleLabel, generalHeader!, generalGrid, permissionsHeader!, permissionsGrid] {
+        for view in [previewPane, titleLabel, subtitleLabel, generalHeader!, generalGrid, permissionsHeader!, permissionsGrid] {
             stack.addArrangedSubview(view)
         }
-        stack.setCustomSpacing(14, after: preview)
+        stack.setCustomSpacing(14, after: previewPane)
         stack.setCustomSpacing(16, after: subtitleLabel)
         stack.setCustomSpacing(18, after: generalGrid)
 
@@ -64,8 +61,7 @@ final class InspectorViewController: NSViewController {
             stack.trailingAnchor.constraint(equalTo: document.trailingAnchor),
             stack.topAnchor.constraint(equalTo: document.topAnchor),
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
-            preview.heightAnchor.constraint(equalToConstant: 190),
-            preview.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
+            previewPane.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
             titleLabel.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -32),
         ])
         for header in [generalHeader!, permissionsHeader!] {
@@ -114,8 +110,12 @@ final class InspectorViewController: NSViewController {
         titleLabel.stringValue = url.path == "/" ? BreadcrumbView.displayName(url) : item.name
         let icon = item.icon
         icon.size = NSSize(width: 256, height: 256)
-        preview.image = icon
-        if !url.isRemote, !item.isNavigableDirectory { loadPreview(for: url) }
+        preview.contentTintColor = nil
+        // Aperçu riche si le type s'y prête, sinon icône puis miniature.
+        if url.isRemote || item.isNavigableDirectory || item.isPackage || !previewPane.show(url) {
+            previewPane.showImage(icon)
+            if !url.isRemote, !item.isNavigableDirectory { loadPreview(for: url) }
+        }
 
         if url.isRemote {
             subtitleLabel.stringValue = item.isNavigableDirectory ? "Dossier" : [item.kind, item.size.map(Format.size)].compactMap { $0 }.joined(separator: " — ")
@@ -149,7 +149,7 @@ final class InspectorViewController: NSViewController {
     private func showMultiple(_ items: [FileItem]) {
         shownURL = nil
         let image = NSImage(systemSymbolName: "square.stack.3d.up", accessibilityDescription: nil)
-        preview.image = image
+        previewPane.showImage(image)
         preview.contentTintColor = .secondaryLabelColor
         titleLabel.stringValue = "\(items.count) éléments"
         let bytes = items.compactMap(\.size).reduce(0, +)

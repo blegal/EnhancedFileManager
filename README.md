@@ -130,3 +130,9 @@ tous les fichiers portant ce tag (Spotlight, dossier personnel).
 Chaque copie / déplacement en cours affiche son débit et le temps restant, avec des boutons pause / reprise
 et annulation. Fichier › Vérifier les copies : chaque copie est relue et comparée à l’original ; lors d’un
 déplacement entre disques, l’original n’est supprimé qu’après vérification.
+
+## Aperçu dans l’inspecteur
+
+Code et texte avec coloration syntaxique (Swift, C/C++, Python, JavaScript/TypeScript, Java/Kotlin, Go, Rust,
+shell, JSON, LaTeX, Markdown), PDF feuilletable (PDFKit), vidéo et audio (AVKit), images, et Coup d’œil
+intégré pour les autres documents.
