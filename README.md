@@ -13,6 +13,9 @@ open build/EnhancedFileManager.app
 
 Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) pour le terminal intégré.
 
+Chaque commit poussé incrémente la version (`Tools/bump-version.sh` : 0.2.1 → 0.2.2 et numéro de build + 1 ;
+`Tools/bump-version.sh minor` pour passer à 0.3.0).
+
 ## Image disque (DMG) et GitHub Actions
 
 ```bash
