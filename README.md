@@ -1,4 +1,4 @@
-# Enhanced File Manager
+# iExplorer
 
 Gestionnaire de fichiers macOS natif (AppKit, Swift) à 1, 2, 3 ou 4 panneaux avec onglets,
 dans l’esprit de ForkLift / Path Finder / muCommander. Aucune dépendance externe.
@@ -7,8 +7,8 @@ Le mode d'occupation du disque (⌘5) et la mise à jour automatique viennent de
 ## Compiler et lancer
 
 ```bash
-./build.sh          # produit build/EnhancedFileManager.app
-open build/EnhancedFileManager.app
+./build.sh          # produit build/iExplorer.app
+open build/iExplorer.app
 ```
 
 Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) pour le terminal intégré.
@@ -20,7 +20,7 @@ Chaque commit poussé incrémente la version (`Tools/bump-version.sh` : 0.2.1 �
 
 ```bash
 UNIVERSAL=1 VERSION=0.2.0 ./build.sh   # binaire Apple Silicon + Intel, version dans Info.plist
-Tools/make-dmg.sh                      # produit build/EnhancedFileManager-0.2.0.dmg
+Tools/make-dmg.sh                      # produit build/iExplorer-0.2.0.dmg
 ```
 
 Le workflow `.github/workflows/release.yml` construit le DMG à chaque push sur `main` (artefact du run, 30 jours) et le publie dans une release GitHub pour chaque tag `v*` :
@@ -32,16 +32,16 @@ git tag v0.2.0 && git push origin v0.2.0
 **Signature.** Sans compte Apple Developer, l'application est signée ad hoc : elle n'est pas notarisée, donc au premier lancement d'un DMG téléchargé, macOS la bloque. Il faut faire clic droit › Ouvrir (ou Réglages Système › Confidentialité et sécurité › Ouvrir quand même), ou retirer l'attribut de quarantaine :
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Enhanced File Manager.app"
+xattr -dr com.apple.quarantine "/Applications/iExplorer.app"
 ```
 
 Facultatif : pour signer avec un certificat stable (auto-signé, ou Developer ID plus tard), ajoutez dans les secrets du dépôt `MACOS_CERTIFICATE_P12` (le .p12 encodé en base64) et `MACOS_CERTIFICATE_PASSWORD`. Une identité stable évite que macOS redemande les autorisations (dossiers, trousseau) après chaque mise à jour.
 
 ## Mise à jour automatique
 
-L'application vérifie les nouvelles versions au lancement (au plus une fois par jour) et à la demande par **Enhanced File Manager › Rechercher les mises à jour…**. Tout est natif (bibliothèque `UpdateKit` du paquet [iBaobab](https://github.com/blegal/iBaobab)), sans Sparkle :
+L'application vérifie les nouvelles versions au lancement (au plus une fois par jour) et à la demande par **iExplorer › Rechercher les mises à jour…**. Tout est natif (bibliothèque `UpdateKit` du paquet [iBaobab](https://github.com/blegal/iBaobab)), sans Sparkle :
 
-1. `URLSession` interroge `https://api.github.com/repos/blegal/EnhancedFileManager/releases/latest` et compare le tag à `CFBundleShortVersionString` (`0.2.0-dev.5` précède `0.2.0`).
+1. `URLSession` interroge `https://api.github.com/repos/blegal/iExplorer/releases/latest` et compare le tag à `CFBundleShortVersionString` (`0.2.0-dev.5` précède `0.2.0`).
 2. Une fenêtre affiche les notes de version (corps de la release) : **Installer**, **Plus tard** ou **Ignorer cette version** (la vérification manuelle propose quand même une version ignorée).
 3. Le DMG est téléchargé avec sa progression, puis sa signature Ed25519 (asset `….dmg.sig`) est vérifiée avec CryptoKit et la clé publique embarquée (`UpdatePublicKey` dans `Resources/Info.plist`). Une signature absente ou invalide arrête tout.
 4. L'image est montée (`hdiutil attach -nobrowse`), la nouvelle application est copiée à côté de l'ancienne, la session est sauvegardée, puis un petit script détaché attend la fin du processus, échange les paquets et relance l'application. Il faut pouvoir écrire dans le dossier de l'application (sinon, un message le dit).
@@ -240,7 +240,7 @@ Les couleurs suivent le type de fichier, l’ancienneté ou la branche. Un clic 
 
 ## iBaobab
 
-[iBaobab](https://github.com/blegal/iBaobab) est une application à part, dans son propre dépôt (public), dédiée à l'analyse de l'occupation des disques. Son paquet SwiftPM fournit les bibliothèques communes : `DiskUsageKit` (scan, modèle `DiskNode`, les sept graphiques et la page d'analyse du mode ⌘5) et `UpdateKit` (mise à jour automatique, indicateur de la barre d'outils). Enhanced File Manager en dépend par `.package(url: "https://github.com/blegal/iBaobab", branch: "main")` ; `swift package update iBaobab` récupère leurs dernières modifications. Pour modifier ces bibliothèques en même temps qu'Enhanced File Manager : `swift package edit iBaobab --path ../iBaobab`.
+[iBaobab](https://github.com/blegal/iBaobab) est une application à part, dans son propre dépôt (public), dédiée à l'analyse de l'occupation des disques. Son paquet SwiftPM fournit les bibliothèques communes : `DiskUsageKit` (scan, modèle `DiskNode`, les sept graphiques et la page d'analyse du mode ⌘5) et `UpdateKit` (mise à jour automatique, indicateur de la barre d'outils). iExplorer en dépend par `.package(url: "https://github.com/blegal/iBaobab", branch: "main")` ; `swift package update iBaobab` récupère leurs dernières modifications. Pour modifier ces bibliothèques en même temps qu'iExplorer : `swift package edit iBaobab --path ../iBaobab`.
 
 ## Actions personnalisées
 

@@ -3,16 +3,26 @@ import Security
 
 /// Mots de passe des serveurs, rangés dans le trousseau de session.
 enum Keychain {
-    private static let service = "EnhancedFileManager"
+    private static let service = "iExplorer"
+    /// Service utilisé avant le renommage de l'app : ses mots de passe sont repris à la première lecture.
+    private static let legacyService = "EnhancedFileManager"
 
-    private static func query(_ account: String) -> [String: Any] {
+    private static func query(_ account: String, service: String = service) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
          kSecAttrAccount as String: account]
     }
 
     static func password(for account: String) -> String? {
-        var query = query(account)
+        if let password = read(query(account)) { return password }
+        guard let legacy = read(query(account, service: legacyService)) else { return nil }
+        save(legacy, for: account)
+        SecItemDelete(query(account, service: legacyService) as CFDictionary)
+        return legacy
+    }
+
+    private static func read(_ query: [String: Any]) -> String? {
+        var query = query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
@@ -26,13 +36,14 @@ enum Keychain {
         if status == errSecItemNotFound {
             var item = query(account)
             item[kSecValueData as String] = data
-            item[kSecAttrLabel as String] = "Enhanced File Manager — \(account)"
+            item[kSecAttrLabel as String] = "iExplorer — \(account)"
             SecItemAdd(item as CFDictionary, nil)
         }
     }
 
     static func delete(_ account: String) {
         SecItemDelete(query(account) as CFDictionary)
+        SecItemDelete(query(account, service: legacyService) as CFDictionary)
     }
 }
 

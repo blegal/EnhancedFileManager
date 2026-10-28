@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Empaquette build/EnhancedFileManager.app dans une image disque compressée :
-# build/EnhancedFileManager-<version>.dmg
+# Empaquette build/iExplorer.app dans une image disque compressée :
+# build/iExplorer-<version>.dmg
 # L'image contient l'application et un raccourci vers /Applications (glisser-déposer pour installer).
 set -euo pipefail
 cd "${0:A:h}/.."
-PRODUCT=EnhancedFileManager
+PRODUCT=iExplorer
 APP=build/$PRODUCT.app
 [[ -d "$APP" ]] || { echo "Lancez d'abord ./build.sh (PRODUCT=$PRODUCT)" >&2; exit 1 }
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")

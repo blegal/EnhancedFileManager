@@ -6,6 +6,18 @@ enum Preferences {
 
     private static let defaults = UserDefaults.standard
 
+    /// Reprend une fois les réglages enregistrés sous l'ancien identifiant (« Enhanced File Manager »).
+    static func migrateLegacyDefaults() {
+        let legacyDomain = "local.EnhancedFileManager"
+        guard !defaults.bool(forKey: "migratedLegacyDefaults") else { return }
+        if let legacy = defaults.persistentDomain(forName: legacyDomain) {
+            for (key, value) in legacy where defaults.object(forKey: key) == nil {
+                defaults.set(value, forKey: key)
+            }
+        }
+        defaults.set(true, forKey: "migratedLegacyDefaults")
+    }
+
     /// Relire et comparer chaque copie à l'original.
     static var verifyCopies: Bool {
         get { defaults.bool(forKey: "verifyCopies") }

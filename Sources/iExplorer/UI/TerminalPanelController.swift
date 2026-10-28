@@ -96,7 +96,7 @@ final class TerminalPanelController: NSViewController, LocalProcessTerminalViewD
         var environment = ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"
         environment["COLORTERM"] = "truecolor"
-        environment["TERM_PROGRAM"] = "EnhancedFileManager"
+        environment["TERM_PROGRAM"] = "iExplorer"
         environment["LANG"] = environment["LANG"] ?? "fr_FR.UTF-8"
         let directory = panelDirectory?.path ?? FileManager.default.homeDirectoryForCurrentUser.path
         titleLabel.stringValue = (directory as NSString).abbreviatingWithTildeInPath

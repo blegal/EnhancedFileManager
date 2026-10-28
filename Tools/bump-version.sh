@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Incrémente la version d'Enhanced File Manager avant chaque commit :
+# Incrémente la version d'iExplorer avant chaque commit :
 # dernier chiffre de CFBundleShortVersionString (0.2.1 → 0.2.2) et numéro de build.
 #   Tools/bump-version.sh          → version corrective
 #   Tools/bump-version.sh minor    → 0.2.5 → 0.3.0

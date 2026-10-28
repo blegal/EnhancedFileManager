@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "EnhancedFileManager",
+    name: "iExplorer",
     platforms: [.macOS("26.0")],
     products: [
-        .executable(name: "EnhancedFileManager", targets: ["EnhancedFileManager"]),
+        .executable(name: "iExplorer", targets: ["iExplorer"]),
     ],
     dependencies: [
         // Émulateur de terminal (licence MIT) pour le terminal intégré.
@@ -15,13 +15,13 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "EnhancedFileManager",
+            name: "iExplorer",
             dependencies: [
                 .product(name: "DiskUsageKit", package: "iBaobab"),
                 .product(name: "UpdateKit", package: "iBaobab"),
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
-            path: "Sources/EnhancedFileManager",
+            path: "Sources/iExplorer",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

@@ -166,7 +166,7 @@ extension FileOperationCenter {
     func openRemote(_ urls: [URL]) {
         guard let first = urls.first else { return }
         let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("EnhancedFileManager/SFTP/\(first.host ?? "serveur")/\(UUID().uuidString)")
+            .appendingPathComponent("iExplorer/SFTP/\(first.host ?? "serveur")/\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
         transfer(.copy, sources: urls, to: cache, undoManager: nil) { downloaded in
             downloaded.forEach { NSWorkspace.shared.open($0) }

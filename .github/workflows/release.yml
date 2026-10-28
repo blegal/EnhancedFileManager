@@ -73,8 +73,8 @@ jobs:
           SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
         run: |
           DMG=$(Tools/make-dmg.sh)
-          codesign --verify --deep --strict --verbose=2 build/EnhancedFileManager.app
-          lipo -info build/EnhancedFileManager.app/Contents/MacOS/EnhancedFileManager
+          codesign --verify --deep --strict --verbose=2 build/iExplorer.app
+          lipo -info build/iExplorer.app/Contents/MacOS/iExplorer
           echo "path=$DMG" >> "$GITHUB_OUTPUT"
 
       # Signature Ed25519 vérifiée par la mise à jour automatique (clé : Tools/make-update-key.swift).
@@ -93,7 +93,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: EnhancedFileManager-${{ steps.version.outputs.version }}
+          name: iExplorer-${{ steps.version.outputs.version }}
           path: |
             ${{ steps.dmg.outputs.path }}
             ${{ steps.sig.outputs.path }}
@@ -105,8 +105,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" ${{ steps.sig.outputs.path }} \
-            --title "Enhanced File Manager ${{ steps.version.outputs.version }}" \
-            --notes "Application non notarisée : au premier lancement, clic droit sur l'app › Ouvrir, ou \`xattr -dr com.apple.quarantine \"/Applications/Enhanced File Manager.app\"\`."
+            --title "iExplorer ${{ steps.version.outputs.version }}" \
+            --notes "Application non notarisée : au premier lancement, clic droit sur l'app › Ouvrir, ou \`xattr -dr com.apple.quarantine \"/Applications/iExplorer.app\"\`."
 
       - name: Nettoyage du trousseau
         if: always() && steps.cert.outputs.identity != '-' && steps.cert.outputs.identity != ''

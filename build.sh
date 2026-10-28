@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Compile l'application et produit build/EnhancedFileManager.app
+# Compile l'application et produit build/iExplorer.app
 # Variables facultatives :
 #   UNIVERSAL=1        binaire universel (Apple Silicon + Intel)
 #   VERSION=1.2.0      numéro de version écrit dans Info.plist
@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "${0:A:h}"
 CONFIG=${1:-release}
-PRODUCT=EnhancedFileManager
+PRODUCT=iExplorer
 INFO=Resources/Info.plist ICON=Resources/AppIcon.icns
 if [[ "${UNIVERSAL:-0}" == 1 ]]; then
     # Une compilation par architecture puis lipo : la compilation multi-architecture

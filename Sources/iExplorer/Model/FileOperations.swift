@@ -378,7 +378,7 @@ final class FileOperationCenter {
     }
 
     private func makeError(_ message: String) -> NSError {
-        NSError(domain: "EnhancedFileManager", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        NSError(domain: "iExplorer", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
     // MARK: Dialogues
@@ -509,7 +509,7 @@ extension FileOperationCenter {
     }
 
     private static func compareFiles(_ a: URL, _ b: URL, job: FileJob) throws {
-        let mismatch = NSError(domain: "EnhancedFileManager", code: 2, userInfo: [
+        let mismatch = NSError(domain: "iExplorer", code: 2, userInfo: [
             NSLocalizedDescriptionKey: "La copie de « \(a.lastPathComponent) » ne correspond pas à l’original.",
         ])
         guard let left = try? FileHandle(forReadingFrom: a), let right = try? FileHandle(forReadingFrom: b) else { throw mismatch }

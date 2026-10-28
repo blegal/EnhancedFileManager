@@ -17,7 +17,7 @@ enum FinderFavorites {
         var message: String {
             switch self {
             case .accessDenied:
-                return "macOS refuse la lecture de la liste des favoris du Finder. Accordez l’« Accès complet au disque » à Enhanced File Manager dans Réglages Système › Confidentialité et sécurité, puis relancez l’app."
+                return "macOS refuse la lecture de la liste des favoris du Finder. Accordez l’« Accès complet au disque » à iExplorer dans Réglages Système › Confidentialité et sécurité, puis relancez l’app."
             case .fileNotFound(let names):
                 return "Aucun fichier de favoris trouvé. Contenu du dossier : \(names.isEmpty ? "(vide)" : names.joined(separator: ", "))."
             case .unreadableFormat(let detail):

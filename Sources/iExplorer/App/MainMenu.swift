@@ -19,7 +19,7 @@ enum MainMenu {
 
     static func build() -> NSMenu {
         let main = NSMenu()
-        let appName = "Enhanced File Manager"
+        let appName = "iExplorer"
 
         func item(_ title: String, _ action: Selector?, _ key: String = "", _ modifiers: NSEvent.ModifierFlags = .command, tag: Int = 0) -> NSMenuItem {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: key)

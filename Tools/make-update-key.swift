@@ -22,7 +22,7 @@ Clé publique :
 1. Enregistrez la clé privée dans les secrets du dépôt, sous le nom UPDATE_SIGNING_KEY :
    GitHub › Settings › Secrets and variables › Actions › New repository secret,
    ou en ligne de commande (la clé est lue sur l'entrée standard, elle n'apparaît pas dans l'historique) :
-     pbpaste | gh secret set UPDATE_SIGNING_KEY --repo blegal/EnhancedFileManager
+     pbpaste | gh secret set UPDATE_SIGNING_KEY --repo blegal/iExplorer
    (après avoir copié la clé privée). Gardez-en aussi une copie dans votre trousseau.
 
 2. Placez la clé publique dans Resources/Info.plist :
