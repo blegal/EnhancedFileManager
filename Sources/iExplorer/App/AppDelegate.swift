@@ -6,6 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build()
+        FileActionStore.shared.installDefaults()
+        // PATH du shell de connexion, lu d'avance pour ne pas ralentir le premier menu contextuel.
+        DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.path }
         NotificationCenter.default.addObserver(forName: CustomAction.changed, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildActionsMenu()
         }
@@ -74,6 +77,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func manageCustomActions(_ sender: Any?) {
         guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? windowControllers.first?.window else { return }
         window.beginSheet(NSWindow(contentViewController: CustomActionsController()))
+    }
+
+    /// Actions par type de fichier ; depuis le menu contextuel, l'élément porte la règle à afficher.
+    @objc func manageFileActions(_ sender: Any?) {
+        let file = (sender as? NSMenuItem)?.representedObject as? URL
+        let directory = (NSApp.mainWindow?.windowController as? MainWindowController)?.activePanel.currentURL
+        FileActionsEditorController.show(selecting: file, projectDirectory: directory?.isFileURL == true ? directory : nil)
     }
 
     /// Reconstruit le menu « Actions » (raccourcis compris) après une modification.

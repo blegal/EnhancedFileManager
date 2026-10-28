@@ -10,6 +10,9 @@ enum MainMenu {
         let manage = NSMenuItem(title: "Gérer les actions…", action: #selector(AppDelegate.manageCustomActions(_:)), keyEquivalent: "")
         manage.image = NSImage(systemSymbolName: "slider.horizontal.3", accessibilityDescription: nil)
         menu.addItem(manage)
+        let byType = NSMenuItem(title: "Actions par type de fichier…", action: #selector(AppDelegate.manageFileActions(_:)), keyEquivalent: "")
+        byType.image = NSImage(systemSymbolName: "doc.badge.gearshape", accessibilityDescription: nil)
+        menu.addItem(byType)
     }
 
     /// Fournit le sous-menu « Dossiers récents » (gardé en vie pour toute la durée de l'app).

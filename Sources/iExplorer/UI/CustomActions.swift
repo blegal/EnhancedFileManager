@@ -140,7 +140,7 @@ extension PanelViewController {
         }
     }
 
-    private func presentMessage(_ text: String, warning: Bool = false) {
+    func presentMessage(_ text: String, warning: Bool = false) {
         let alert = NSAlert()
         alert.alertStyle = warning ? .warning : .informational
         let parts = text.components(separatedBy: "\n\n")

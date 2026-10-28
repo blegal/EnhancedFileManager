@@ -1324,6 +1324,13 @@ final class PanelViewController: NSViewController {
         if !selection.isEmpty, !currentURL.isRemote { menu.addItem(tagsPalette(for: selection)) }
         menu.addItem(.separator())
 
+        // Actions définies par les règles de type de fichier (Makefile, Typst, Markdown…).
+        let fileActions = fileActionMenuItems()
+        if !fileActions.isEmpty {
+            fileActions.forEach(menu.addItem)
+            menu.addItem(.separator())
+        }
+
         if !selection.isEmpty {
             add("Ouvrir", #selector(openSelection(_:)), "arrow.up.forward.app")
             if selection.contains(where: \.isNavigableDirectory) {

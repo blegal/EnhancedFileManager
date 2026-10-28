@@ -248,3 +248,42 @@ Menu Actions › Gérer les actions… : commandes shell avec variables (`%chemi
 `%fichier`, `%nom`, `%base`, `%ext`, protégées pour le shell), exécutées dans le terminal intégré ou en
 arrière-plan, avec raccourci clavier et confirmation optionnels. Disponibles dans le menu Actions et le
 clic droit. Exemples fournis : compiler un .tex (latexmk), ouvrir dans VS Code, rsync vers un serveur.
+
+## Actions par type de fichier
+
+Le clic droit propose des actions selon le fichier : les cibles d’un Makefile (`make all`, `make clean`…),
+« Compiler en PDF » sur un .typ, « Convertir en PDF / HTML / Word » sur un .md, etc. Chaque règle est un petit
+fichier TOML dans `~/Library/Application Support/iExplorer/Actions/`, modifiable dans Actions › Actions par type
+de fichier… (vérification à la frappe, aperçu du menu sur un vrai fichier) ou dans n’importe quel éditeur.
+
+```toml
+name  = "Typst"
+icon  = "doc.richtext"                  # symbole SF
+match = { extensions = ["typ"] }        # ou names = ["Makefile", "*.mk"], types = ["public.image"],
+                                        # folderContains = true, count = "one" | "many" | "any"
+requires = ["typst"]                    # règle masquée si l’outil manque
+
+[[action]]
+title = "Compiler en PDF"
+run   = 'typst compile "$FILE"'
+in    = "background"                    # terminal (intégré), background ou open
+then  = "reveal $STEM.pdf"              # reveal / open <fichier>, output, refresh
+
+[[list]]                                # une entrée par ligne imprimée par « from »
+from   = "…"
+title  = "make $ITEM"
+run    = 'make "$ITEM"'
+pinned = ["all", "clean"]               # en tête, les autres dans « Autres »
+```
+
+- Variables (exportées) : `$FILE`, `$DIR`, `$NAME`, `$STEM`, `$EXT`, `$ITEM`, `$OTHER` (autre panneau) et
+  `"$@"` (tous les fichiers sélectionnés). Les commandes tournent dans zsh avec le PATH du shell de connexion
+  (Homebrew, MacTeX…).
+- Une action peut aussi avoir `confirm`, `count`, `requires` et `missing` (montrée seulement si l’outil manque,
+  par exemple « Installer pandoc »).
+- Règles fournies au premier lancement : Makefile, Typst, Markdown (pandoc), LaTeX (latexmk), images (sips),
+  vidéos (avconvert, ffmpeg), audio (afconvert), PDF (qpdf, Ghostscript), scripts, paquet Swift, npm, Cargo,
+  CMake, JSON (jq). Les actions dont l’outil n’est pas installé n’apparaissent pas.
+- Règles d’un projet : un dossier `.iexplorer/actions/` à la racine du dépôt, partagé avec Git. Comme il peut
+  exécuter n’importe quelle commande, chaque fichier doit être approuvé (et l’être de nouveau s’il change).
+- Les actions s’exécutent sur les dossiers locaux (pas encore sur les panneaux SFTP).
