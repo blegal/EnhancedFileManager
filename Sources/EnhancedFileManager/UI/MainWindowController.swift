@@ -335,6 +335,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             if let connection { self?.open(connection) } else { self?.showConnectionPanel(nil) }
         }
         sidebar.onEditConnection = { [weak self] connection in self?.showConnectionPanel(connection) }
+        sidebar.onShowTag = { [weak self] tag in
+            guard let panel = self?.activePanel else { return }
+            panel.showFiles(taggedWith: tag)
+            panel.activate()
+        }
         panelsController.onActivePanelChange = { [weak self] panel in self?.activePanelChanged(panel) }
         panelsController.onActiveSelectionChange = { [weak self] panel in self?.updateInspector(panel) }
         panelsController.onLayoutChange = { [weak self] layout in self?.updateInspectorVisibility(layout: layout, animated: false) }

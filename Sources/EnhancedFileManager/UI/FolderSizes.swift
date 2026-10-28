@@ -80,7 +80,7 @@ extension PanelViewController {
             allItems = Self.sorted(allItems, by: sortDescriptor)
             if !isShowingSearchResults {
                 let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
-                items = filter.map { match in allItems.filter { match($0.name) } } ?? allItems
+                items = filter.map { match in allItems.filter { item in match(item.name) { item.finderTags } } } ?? allItems
             }
             reloadViews()
             let paths = Set(selection.map(\.normalizedPath))

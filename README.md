@@ -118,3 +118,9 @@ macOS peut exiger l’« Accès complet au disque » pour lire leur liste.
 
 La zone des onglets est teintée par l’accent du thème. Clic droit sur un onglet : couleur de l’onglet
 (rouge, orange, jaune, vert, bleu, violet, gris), mémorisée avec la session.
+
+## Tags du Finder
+
+Pastilles de couleur dans les listes, ligne « Tags » dans l’inspecteur. Clic droit › Tags pour ajouter ou
+retirer un tag (annulable). Recherche ⌘F : `tag:Rouge` ou `#Rouge`. Section « Tags » de la barre latérale :
+tous les fichiers portant ce tag (Spotlight, dossier personnel).

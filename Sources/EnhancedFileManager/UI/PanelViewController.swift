@@ -529,7 +529,7 @@ final class PanelViewController: NSViewController {
             allItems = list
             for item in list where item.isNavigableDirectory { item.folderSize = folderSizes[item.url.normalizedPath] }
             let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
-            items = filter.map { match in list.filter { match($0.name) } } ?? list
+            items = filter.map { match in list.filter { item in match(item.name) { item.finderTags } } } ?? list
             loadError = nil
         case .failure(let error):
             if !currentURL.isRemote, !currentURL.isExistingDirectory {
@@ -1272,6 +1272,7 @@ final class PanelViewController: NSViewController {
             }
             if !currentURL.isRemote {
                 menu.addItem(.separator())
+                menu.addItem(tagsMenuItem())
                 let name = selection.count == 1 ? "« \(selection[0].name) »" : "\(selection.count) éléments"
                 add("Compresser \(name)", #selector(compressSelection(_:)), "archivebox")
                 let formats = NSMenuItem(title: "Compresser au format", action: nil, keyEquivalent: "")
@@ -1421,6 +1422,7 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
                 cell.normalTextColor = state?.color ?? Theme.text
                 cell.applyTextColor()
             }
+            cell.tagDots.attributedStringValue = item.url.isFileURL ? FinderTags.dots(for: item.finderTags) : NSAttributedString()
             if let badge = repositoryBadge(for: item) {
                 cell.badge.attributedStringValue = badge
             } else if let state, !state.letter.isEmpty {
@@ -1470,7 +1472,10 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         badge.setContentHuggingPriority(.required, for: .horizontal)
         badge.setContentCompressionResistancePriority(.required, for: .horizontal)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        for view in [image, field, badge] as [NSView] {
+        let dots = cell.tagDots
+        dots.setContentHuggingPriority(.required, for: .horizontal)
+        dots.setContentCompressionResistancePriority(.required, for: .horizontal)
+        for view in [image, field, dots, badge] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(view)
         }
@@ -1481,7 +1486,9 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
             cell.iconHeight,
             field.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: 7),
             field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            badge.leadingAnchor.constraint(greaterThanOrEqualTo: field.trailingAnchor, constant: 6),
+            dots.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 4),
+            dots.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            badge.leadingAnchor.constraint(greaterThanOrEqualTo: dots.trailingAnchor, constant: 6),
             badge.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
             badge.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
@@ -1518,7 +1525,7 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         } else {
             allItems = Self.sorted(allItems, by: sortDescriptor)
             let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
-            items = filter.map { match in allItems.filter { match($0.name) } } ?? allItems
+            items = filter.map { match in allItems.filter { item in match(item.name) { item.finderTags } } } ?? allItems
         }
         reloadViews()
         let paths = Set(selection.map(\.normalizedPath))
@@ -1666,6 +1673,8 @@ extension PanelViewController: NSCollectionViewDataSource, NSCollectionViewDeleg
 /// Cellule « Nom » : icône, nom et indicateur Git à droite.
 final class NameCellView: ThemedCellView {
     let badge = NSTextField(labelWithString: "")
+    /// Pastilles des tags du Finder.
+    let tagDots = NSTextField(labelWithString: "")
     var iconWidth: NSLayoutConstraint!
     var iconHeight: NSLayoutConstraint!
     private var scale: CGFloat = 1

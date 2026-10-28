@@ -139,6 +139,8 @@ final class InspectorViewController: NSViewController {
         ]
         if !ext.isEmpty, !item.isNavigableDirectory { rows.append(("Extension", ext)) }
         rows.append(("Masqué", (values?.isHidden ?? false) ? "Oui" : "Non"))
+        let tags = FinderTags.read(url)
+        if !tags.isEmpty { rows.append(("Tags", tags.map(\.name).joined(separator: ", "))) }
         fillGeneral(rows)
         showPermissions(for: url)
         if item.isNavigableDirectory { computeFolderSize(url) }

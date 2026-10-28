@@ -20,6 +20,10 @@ final class FileItem {
     private let remoteKind: String?
     /// Taille d'un dossier, une fois calculée à la demande (⌥Espace).
     var folderSize: Int64?
+    /// Tags du Finder, lus à la demande (seulement pour les lignes affichées).
+    lazy var finderTags: [FinderTag] = FinderTags.read(url)
+    var tags: [String] { finderTags.map(\.name) }
+
     /// Taille du fichier, ou du dossier si elle a été calculée.
     var effectiveSize: Int64? { size ?? folderSize }
 

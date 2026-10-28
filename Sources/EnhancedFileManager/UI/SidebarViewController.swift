@@ -1,7 +1,7 @@
 import AppKit
 
 final class SidebarItem {
-    enum Kind { case section, location, volume, connect, server, finderAccess }
+    enum Kind { case section, location, volume, connect, server, finderAccess, tag }
 
     let kind: Kind
     let title: String
@@ -30,6 +30,8 @@ final class SidebarViewController: NSViewController {
     /// `nil` : ouvrir le panneau de nouvelle connexion.
     var onConnect: ((ServerConnection?) -> Void)?
     var onEditConnection: ((ServerConnection) -> Void)?
+    /// Clic sur un tag : afficher tous les fichiers qui le portent.
+    var onShowTag: ((String) -> Void)?
 
     private let outlineView = NSOutlineView()
     private var sections: [SidebarItem] = []
@@ -166,7 +168,11 @@ final class SidebarViewController: NSViewController {
         }
         network.children.append(SidebarItem(kind: .connect, title: "Se connecter au serveur…", symbol: "plus.circle", tint: .secondaryLabelColor))
 
-        sections = [favorites, devices, network]
+        let tags = SidebarItem(kind: .section, title: "Tags")
+        tags.children = FinderTags.standard.map { standard in
+            SidebarItem(kind: .tag, title: standard.name, symbol: "circle.fill", tint: standard.color)
+        }
+        sections = [favorites, devices, network, tags]
         outlineView.reloadData()
         sections.forEach { outlineView.expandItem($0) }
     }
@@ -189,6 +195,7 @@ final class SidebarViewController: NSViewController {
         case .location, .volume: if let url = item.url { onNavigate?(url) }
         case .connect: onConnect?(nil)
         case .finderAccess: FinderFavorites.showDiagnostic()
+        case .tag: onShowTag?(item.title)
         case .server: onConnect?(item.connection)
         case .section: break
         }

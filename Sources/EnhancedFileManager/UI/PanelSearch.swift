@@ -157,20 +157,27 @@ extension PanelViewController {
         let text = isSearching && searchBar.scope == .folder ? searchBar.field.stringValue.trimmingCharacters(in: .whitespaces) : ""
         let matcher = Self.nameMatcher(for: text)
         let selection = selectedURLs
-        items = matcher.map { match in allItems.filter { match($0.name) } } ?? allItems
+        items = matcher.map { match in allItems.filter { item in match(item.name) { item.finderTags } } } ?? allItems
         reloadViews()
         let paths = Set(selection.map(\.normalizedPath))
         setSelection(IndexSet(items.indices.filter { paths.contains(items[$0].url.normalizedPath) }), scroll: false)
     }
 
-    /// `nil` quand il n'y a rien à filtrer.
-    static func nameMatcher(for text: String) -> ((String) -> Bool)? {
+    /// Filtre d'un texte de recherche : nom contenant le texte, motif « *.pdf », ou tag (« tag:Rouge » / « #Rouge »).
+    /// `nil` quand il n'y a rien à filtrer. Les tags ne sont lus que si la recherche porte sur eux.
+    static func nameMatcher(for text: String) -> ((String, () -> [FinderTag]) -> Bool)? {
         guard !text.isEmpty else { return nil }
+        let lower = text.lowercased()
+        if lower.hasPrefix("tag:") || lower.hasPrefix("#") {
+            let tag = String(text.drop(while: { $0 != ":" && $0 != "#" }).dropFirst()).trimmingCharacters(in: .whitespaces)
+            guard !tag.isEmpty else { return nil }
+            return { _, tags in tags().contains { $0.matches(tag) } }
+        }
         if text.contains("*") || text.contains("?") {
             let predicate = NSPredicate(format: "SELF LIKE[cd] %@", text)
-            return { predicate.evaluate(with: $0) }
+            return { name, _ in predicate.evaluate(with: name) }
         }
-        return { $0.range(of: text, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+        return { name, _ in name.range(of: text, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
     }
 
     /// Recherche par nom dans les sous-dossiers (parcours du disque, en arrière-plan, 2 000 résultats au plus).
@@ -188,7 +195,7 @@ extension PanelViewController {
             while let url = enumerator?.nextObject() as? URL {
                 visited += 1
                 if visited % 500 == 0, self?.searchGeneration != generation { return }
-                if match(url.lastPathComponent) {
+                if match(url.lastPathComponent, { FinderTags.read(url) }) {
                     found.append(url)
                     if found.count >= 2000 { break }
                 }
@@ -203,10 +210,28 @@ extension PanelViewController {
 
     /// Recherche dans le contenu des fichiers via l'index Spotlight.
     private func searchContent(_ text: String, generation: Int) {
-        let query = NSMetadataQuery()
         let escaped = text.replacingOccurrences(of: "\"", with: "")
-        query.predicate = NSPredicate(format: "(kMDItemTextContent CONTAINS[cd] %@) OR (kMDItemFSName CONTAINS[cd] %@)", escaped, escaped)
-        query.searchScopes = [currentURL]
+        let lower = escaped.lowercased()
+        if lower.hasPrefix("tag:") || lower.hasPrefix("#") {
+            let tag = String(escaped.drop(while: { $0 != ":" && $0 != "#" }).dropFirst()).trimmingCharacters(in: .whitespaces)
+            runSpotlight(NSPredicate(format: "kMDItemUserTags ==[cd] %@", tag), scopes: [currentURL], generation: generation)
+        } else {
+            runSpotlight(NSPredicate(format: "(kMDItemTextContent CONTAINS[cd] %@) OR (kMDItemFSName CONTAINS[cd] %@)", escaped, escaped),
+                         scopes: [currentURL], generation: generation)
+        }
+    }
+
+    /// Tous les fichiers portant un tag, dans le dossier personnel.
+    func searchTagEverywhere(_ tag: String) {
+        searchGeneration += 1
+        runSpotlight(NSPredicate(format: "kMDItemUserTags ==[cd] %@", tag), scopes: [NSMetadataQueryUserHomeScope], generation: searchGeneration)
+    }
+
+    private func runSpotlight(_ predicate: NSPredicate, scopes: [Any], generation: Int) {
+        searchQuery?.stop()
+        let query = NSMetadataQuery()
+        query.predicate = predicate
+        query.searchScopes = scopes
         query.operationQueue = .main
         searchBar.setBusy(true)
         var observer: NSObjectProtocol?
