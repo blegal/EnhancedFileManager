@@ -125,7 +125,7 @@ final class InspectorViewController: NSViewController {
             subtitleLabel.stringValue = item.isNavigableDirectory ? "Dossier" : [item.kind, item.size.map(Format.size)].compactMap { $0 }.joined(separator: " — ")
             fillGeneral([("Chemin", url.path), ("Serveur", url.host ?? ""),
                          ("Modifié", item.modificationDate.map { Format.dateFormatter.string(from: $0) } ?? "—")])
-            setPermissionsVisible(false)
+            showRemotePermissions(for: url)
             return
         }
         let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey, .addedToDirectoryDateKey,
@@ -253,12 +253,54 @@ final class InspectorViewController: NSViewController {
         permissionsGrid.isHidden = !visible
     }
 
+    // MARK: Permissions
+
+    /// Permissions affichées : locales (FileManager) ou distantes (sftp).
+    private struct Permissions {
+        var mode: Int
+        var owner: String
+        var group: String
+        var ownerID: String
+        var groupID: String
+        /// Indicateur « verrouillé » (local seulement).
+        var immutable: Bool?
+        var isDirectory: Bool
+    }
+
+    private var shownPermissions: Permissions?
+
     private func showPermissions(for url: URL) {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let mode = (attributes[.posixPermissions] as? NSNumber)?.intValue else {
             setPermissionsVisible(false)
             return
         }
+        fillPermissions(Permissions(mode: mode & 0o7777,
+                                    owner: attributes[.ownerAccountName] as? String ?? "—",
+                                    group: attributes[.groupOwnerAccountName] as? String ?? "—",
+                                    ownerID: (attributes[.ownerAccountID] as? NSNumber)?.stringValue ?? "",
+                                    groupID: (attributes[.groupOwnerAccountID] as? NSNumber)?.stringValue ?? "",
+                                    immutable: (attributes[.immutable] as? Bool) == true,
+                                    isDirectory: (attributes[.type] as? FileAttributeType) == .typeDirectory), url: url)
+    }
+
+    /// Permissions d'un élément SFTP, lues en arrière-plan.
+    private func showRemotePermissions(for url: URL) {
+        setPermissionsVisible(false)
+        let current = generation
+        DispatchQueue.global(qos: .userInitiated).async {
+            let attributes = try? SFTPManager.shared.session(for: url).attributes(url.path)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, current == generation, let attributes else { return }
+                let entry = attributes.entry
+                fillPermissions(Permissions(mode: entry.permissions, owner: attributes.ownerName, group: attributes.groupName,
+                                            ownerID: entry.owner, groupID: entry.group, immutable: nil, isDirectory: entry.isDirectory), url: url)
+            }
+        }
+    }
+
+    private func fillPermissions(_ info: Permissions, url: URL) {
+        shownPermissions = info
         permissionsGrid = replaceGrid(permissionsGrid)
         setPermissionsVisible(true)
 
@@ -269,27 +311,49 @@ final class InspectorViewController: NSViewController {
             return field
         }
         permissionsGrid.addRow(with: [NSGridCell.emptyContentView, label("R"), label("W"), label("X")])
-        let rows = [("Propriétaire", 6), ("Groupe", 3), ("Autres", 0)]
-        for (title, shift) in rows {
+        for (title, shift) in [("Propriétaire", 6), ("Groupe", 3), ("Autres", 0)] {
             var cells: [NSView] = [label(title)]
             for bit in [4, 2, 1] {
                 let checkbox = NSButton(checkboxWithTitle: "", target: self, action: #selector(togglePermission(_:)))
-                checkbox.state = mode & (bit << shift) != 0 ? .on : .off
+                checkbox.state = info.mode & (bit << shift) != 0 ? .on : .off
                 checkbox.tag = bit << shift
-                checkbox.isEnabled = FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path)
-                    || (attributes[.ownerAccountName] as? String) == NSUserName()
                 cells.append(checkbox)
             }
             permissionsGrid.addRow(with: cells)
         }
-        let octal = String(mode & 0o777, radix: 8)
-        permissionsGrid.addRow(with: [label("Octal"), label("\(symbolic(mode))  \(octal)", secondary: false)])
-        permissionsGrid.addRow(with: [label("Propriétaire"), label(attributes[.ownerAccountName] as? String ?? "—", secondary: false)])
-        permissionsGrid.addRow(with: [label("Groupe"), label(attributes[.groupOwnerAccountName] as? String ?? "—", secondary: false)])
-        let locked = NSButton(checkboxWithTitle: "", target: self, action: #selector(toggleLocked(_:)))
-        locked.state = (attributes[.immutable] as? Bool) == true ? .on : .off
-        permissionsGrid.addRow(with: [label("Verrouillé"), locked])
-        for row in permissionsGrid.numberOfRows - 4..<permissionsGrid.numberOfRows {
+        let firstMerged = permissionsGrid.numberOfRows
+
+        // Mode octal modifiable (ex. 755), avec sa forme symbolique.
+        let octal = NSTextField(string: String(info.mode & 0o777, radix: 8))
+        octal.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        octal.target = self
+        octal.action = #selector(applyOctal(_:))
+        octal.toolTip = "Mode en octal (ex. 644, 755) — Retour pour appliquer"
+        octal.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        let symbolicLabel = label(symbolic(info.mode), secondary: false)
+        symbolicLabel.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+        permissionsGrid.addRow(with: [label("Octal"), row(octal, symbolicLabel)])
+
+        if url.isRemote {
+            // sftp n'accepte que des identifiants numériques pour chown / chgrp.
+            permissionsGrid.addRow(with: [label("Propriétaire"), row(idField(info.ownerID, action: #selector(applyRemoteOwner(_:))), label(info.owner))])
+            permissionsGrid.addRow(with: [label("Groupe"), row(idField(info.groupID, action: #selector(applyRemoteGroup(_:))), label(info.group))])
+        } else {
+            permissionsGrid.addRow(with: [label("Propriétaire"), popup(Self.localUsers(), selected: info.owner, action: #selector(changeOwner(_:)))])
+            permissionsGrid.addRow(with: [label("Groupe"), popup(Self.localGroups(), selected: info.group, action: #selector(changeGroup(_:)))])
+        }
+        if let immutable = info.immutable {
+            let locked = NSButton(checkboxWithTitle: "", target: self, action: #selector(toggleLocked(_:)))
+            locked.state = immutable ? .on : .off
+            permissionsGrid.addRow(with: [label("Verrouillé"), locked])
+        }
+        if info.isDirectory {
+            let button = NSButton(title: "Appliquer aux éléments inclus…", target: self, action: #selector(applyToEnclosed(_:)))
+            button.controlSize = .small
+            button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            permissionsGrid.addRow(with: [NSGridCell.emptyContentView, button])
+        }
+        for row in firstMerged..<permissionsGrid.numberOfRows {
             permissionsGrid.mergeCells(inHorizontalRange: NSRange(location: 1, length: 3), verticalRange: NSRange(location: row, length: 1))
             permissionsGrid.cell(atColumnIndex: 1, rowIndex: row).xPlacement = .leading
         }
@@ -300,21 +364,103 @@ final class InspectorViewController: NSViewController {
         }
     }
 
+    private func row(_ views: NSView...) -> NSStackView {
+        let stack = NSStackView(views: views)
+        stack.orientation = .horizontal
+        stack.spacing = 6
+        return stack
+    }
+
+    private func idField(_ value: String, action: Selector) -> NSTextField {
+        let field = NSTextField(string: value)
+        field.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        field.target = self
+        field.action = action
+        field.toolTip = "Identifiant numérique — Retour pour appliquer"
+        field.widthAnchor.constraint(equalToConstant: 60).isActive = true
+        return field
+    }
+
+    private func popup(_ names: [String], selected: String, action: Selector) -> NSPopUpButton {
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.controlSize = .small
+        popup.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        popup.addItems(withTitles: names.contains(selected) ? names : [selected] + names)
+        popup.selectItem(withTitle: selected)
+        popup.target = self
+        popup.action = action
+        return popup
+    }
+
+    /// Comptes locaux (root et utilisateurs, sans les comptes système « _ »).
+    private static func localUsers() -> [String] {
+        var names: [String] = []
+        setpwent()
+        while let entry = getpwent() {
+            let name = String(cString: entry.pointee.pw_name)
+            if (entry.pointee.pw_uid == 0 || entry.pointee.pw_uid >= 500) && !name.hasPrefix("_") && entry.pointee.pw_uid != 4_294_967_294 { names.append(name) }
+        }
+        endpwent()
+        return Array(Set(names)).sorted()
+    }
+
+    private static func localGroups() -> [String] {
+        var names: [String] = []
+        setgrent()
+        while let entry = getgrent() {
+            let name = String(cString: entry.pointee.gr_name)
+            if !name.hasPrefix("_"), !name.hasPrefix("com.apple.") { names.append(name) }
+        }
+        endgrent()
+        return Array(Set(names)).sorted()
+    }
+
     private func symbolic(_ mode: Int) -> String {
         let flags = ["r", "w", "x"]
         return (0..<9).map { index in mode & (1 << (8 - index)) != 0 ? flags[index % 3] : "-" }.joined()
     }
 
+    // MARK: Modification des permissions
+
+    private enum PermissionChange {
+        case mode(Int), owner(String), group(String)
+    }
+
     @objc private func togglePermission(_ sender: NSButton) {
-        guard let url = shownURL,
-              let mode = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber else { return }
-        let updated = sender.state == .on ? mode.intValue | sender.tag : mode.intValue & ~sender.tag
-        do {
-            try FileManager.default.setAttributes([.posixPermissions: updated], ofItemAtPath: url.path)
-        } catch {
-            NSAlert(error: error).runModal()
+        guard let info = shownPermissions else { return }
+        apply(.mode(sender.state == .on ? info.mode | sender.tag : info.mode & ~sender.tag))
+    }
+
+    @objc private func applyOctal(_ sender: NSTextField) {
+        guard let info = shownPermissions else { return }
+        guard let value = Int(sender.stringValue.trimmingCharacters(in: .whitespaces), radix: 8), (0...0o777).contains(value) else {
+            NSSound.beep()
+            sender.stringValue = String(info.mode & 0o777, radix: 8)
+            return
         }
-        showPermissions(for: url)
+        apply(.mode((info.mode & ~0o777) | value))
+    }
+
+    @objc private func changeOwner(_ sender: NSPopUpButton) {
+        guard let name = sender.titleOfSelectedItem, name != shownPermissions?.owner else { return }
+        apply(.owner(name))
+    }
+
+    @objc private func changeGroup(_ sender: NSPopUpButton) {
+        guard let name = sender.titleOfSelectedItem, name != shownPermissions?.group else { return }
+        apply(.group(name))
+    }
+
+    @objc private func applyRemoteOwner(_ sender: NSTextField) {
+        let value = sender.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !value.isEmpty, value.allSatisfy(\.isNumber), value != shownPermissions?.ownerID else { return }
+        apply(.owner(value))
+    }
+
+    @objc private func applyRemoteGroup(_ sender: NSTextField) {
+        let value = sender.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !value.isEmpty, value.allSatisfy(\.isNumber), value != shownPermissions?.groupID else { return }
+        apply(.group(value))
     }
 
     @objc private func toggleLocked(_ sender: NSButton) {
@@ -325,6 +471,107 @@ final class InspectorViewController: NSViewController {
             NSAlert(error: error).runModal()
         }
         showPermissions(for: url)
+    }
+
+    /// Applique le mode, le propriétaire et le groupe du dossier à tout son contenu (comme le Finder).
+    @objc private func applyToEnclosed(_ sender: NSButton) {
+        guard let url = shownURL, let info = shownPermissions else { return }
+        let alert = NSAlert()
+        alert.messageText = "Appliquer les permissions de « \(url.lastPathComponent) » à tous les éléments inclus ?"
+        alert.informativeText = "Mode \(symbolic(info.mode)) (\(String(info.mode & 0o777, radix: 8))), propriétaire \(info.owner), groupe \(info.group). Cette opération ne peut pas être annulée."
+        alert.addButton(withTitle: "Appliquer")
+        alert.addButton(withTitle: "Annuler")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let changes: [PermissionChange] = url.isRemote ? [.mode(info.mode), .owner(info.ownerID), .group(info.groupID)]
+                                                       : [.mode(info.mode), .owner(info.owner), .group(info.group)]
+        apply(changes, recursive: true)
+    }
+
+    private func apply(_ change: PermissionChange) { apply([change], recursive: false) }
+
+    private func apply(_ changes: [PermissionChange], recursive: Bool) {
+        guard let url = shownURL else { return }
+        if url.isRemote {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result { try Self.applyRemote(changes, to: url, recursive: recursive) }
+                DispatchQueue.main.async { [weak self] in
+                    if case .failure(let error) = result { NSAlert(error: error).runModal() }
+                    if self?.shownURL == url { self?.showRemotePermissions(for: url) }
+                }
+            }
+            return
+        }
+        let failures = Self.applyLocal(changes, to: url, recursive: recursive)
+        if !failures.isEmpty {
+            // Fichiers d'un autre compte : on propose de recommencer avec les droits d'administrateur.
+            let alert = NSAlert()
+            alert.messageText = "Modification refusée pour \(failures.count == 1 ? "« \(failures[0].lastPathComponent) »" : "\(failures.count) éléments")."
+            alert.informativeText = "Vous pouvez réessayer avec les droits d'administrateur (macOS demandera votre mot de passe)."
+            alert.addButton(withTitle: "Réessayer en administrateur")
+            alert.addButton(withTitle: "Annuler")
+            if alert.runModal() == .alertFirstButtonReturn { Self.applyAsAdministrator(changes, to: url, recursive: recursive) }
+        }
+        showPermissions(for: url)
+    }
+
+    /// Modifications locales ; renvoie les éléments refusés.
+    private static func applyLocal(_ changes: [PermissionChange], to url: URL, recursive: Bool) -> [URL] {
+        var targets = [url]
+        if recursive, let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: nil, options: []) {
+            for case let child as URL in enumerator { targets.append(child) }
+        }
+        var failures: [URL] = []
+        for target in targets {
+            var attributes: [FileAttributeKey: Any] = [:]
+            for change in changes {
+                switch change {
+                case .mode(let mode): attributes[.posixPermissions] = mode
+                case .owner(let name): attributes[.ownerAccountName] = name
+                case .group(let name): attributes[.groupOwnerAccountName] = name
+                }
+            }
+            do { try FileManager.default.setAttributes(attributes, ofItemAtPath: target.path) } catch { failures.append(target) }
+        }
+        return failures
+    }
+
+    private static func applyAsAdministrator(_ changes: [PermissionChange], to url: URL, recursive: Bool) {
+        func quoted(_ text: String) -> String { "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        let flag = recursive ? "-R " : ""
+        let commands = changes.map { change -> String in
+            switch change {
+            case .mode(let mode): "/bin/chmod \(flag)\(String(mode, radix: 8)) \(quoted(url.path))"
+            case .owner(let name): "/usr/sbin/chown \(flag)\(quoted(name)) \(quoted(url.path))"
+            case .group(let name): "/usr/bin/chgrp \(flag)\(quoted(name)) \(quoted(url.path))"
+            }
+        }
+        let shell = commands.joined(separator: " && ").replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        var error: NSDictionary?
+        NSAppleScript(source: "do shell script \"\(shell)\" with administrator privileges")?.executeAndReturnError(&error)
+        if let error, (error[NSAppleScript.errorNumber] as? Int) != -128 {
+            let alert = NSAlert()
+            alert.messageText = "La modification a échoué."
+            alert.informativeText = error[NSAppleScript.errorMessage] as? String ?? ""
+            alert.runModal()
+        }
+    }
+
+    private static func applyRemote(_ changes: [PermissionChange], to url: URL, recursive: Bool) throws {
+        let session = try SFTPManager.shared.session(for: url)
+        func visit(_ path: String, isDirectory: Bool) throws {
+            for change in changes {
+                switch change {
+                case .mode(let mode): try session.changeMode(mode & 0o7777, of: path)
+                case .owner(let uid): try session.changeOwner(uid, of: path)
+                case .group(let gid): try session.changeGroup(gid, of: path)
+                }
+            }
+            guard recursive, isDirectory else { return }
+            for entry in try session.list(path).entries where !entry.isSymlink {
+                try visit(entry.path, isDirectory: entry.isDirectory)
+            }
+        }
+        try visit(url.path, isDirectory: recursive && session.isDirectory(url.path))
     }
 }
 

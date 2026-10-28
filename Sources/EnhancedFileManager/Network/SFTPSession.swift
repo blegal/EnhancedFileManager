@@ -56,8 +56,22 @@ struct SFTPEntry {
     let type: Character   // d, -, l…
     let size: Int64
     let date: Date?
+    /// Mode symbolique (« drwxr-xr-x »), propriétaire et groupe (numériques avec `ls -n`).
+    var mode = ""
+    var owner = ""
+    var group = ""
 
     var isDirectory: Bool { type == "d" }
+
+    /// Bits de permission (rwx × 3) lus dans le mode symbolique.
+    var permissions: Int {
+        let characters = Array(mode.dropFirst().prefix(9))
+        var value = 0
+        for (index, character) in characters.enumerated() where character != "-" && character != "S" && character != "T" {
+            value |= 1 << (8 - index)
+        }
+        return value
+    }
     var isSymlink: Bool { type == "l" }
 }
 
@@ -279,7 +293,11 @@ final class SFTPSession {
             if entry.path == prefix + "." { isDirectory = true; continue }
             if entry.path == prefix + ".." { continue }
             let name = entry.path.hasPrefix(prefix) ? String(entry.path.dropFirst(prefix.count)) : (entry.path as NSString).lastPathComponent
-            entries.append(SFTPEntry(path: prefix + name, name: name, type: entry.type, size: entry.size, date: entry.date))
+            var child = SFTPEntry(path: prefix + name, name: name, type: entry.type, size: entry.size, date: entry.date)
+            child.mode = entry.mode
+            child.owner = entry.owner
+            child.group = entry.group
+            entries.append(child)
         }
         return (isDirectory, entries)
     }
@@ -289,6 +307,22 @@ final class SFTPSession {
     }
 
     func makeDirectory(_ path: String) throws { try run("mkdir \(Self.escape(path))") }
+
+    /// Permissions, propriétaire et groupe d'un chemin : identifiants numériques et noms.
+    func attributes(_ path: String) throws -> (entry: SFTPEntry, ownerName: String, groupName: String) {
+        func entry(_ options: String) throws -> SFTPEntry? {
+            let entries = try run("ls \(options) \(Self.escape(path))").compactMap(Self.parse)
+            // Un dossier se décrit par son entrée « . » ; un fichier par son unique ligne.
+            return entries.first { $0.path.hasSuffix("/.") || $0.path == "." } ?? (entries.count == 1 ? entries[0] : nil)
+        }
+        guard let numeric = try entry("-lan") else { throw SFTPError.command("Impossible de lire les permissions de « \(path) ».") }
+        let named = try? entry("-la")
+        return (numeric, named?.owner ?? numeric.owner, named?.group ?? numeric.group)
+    }
+
+    func changeMode(_ mode: Int, of path: String) throws { try run("chmod \(String(mode, radix: 8)) \(Self.escape(path))") }
+    func changeOwner(_ uid: String, of path: String) throws { try run("chown \(uid) \(Self.escape(path))") }
+    func changeGroup(_ gid: String, of path: String) throws { try run("chgrp \(gid) \(Self.escape(path))") }
 
     func rename(_ from: String, to: String) throws { try run("rename \(Self.escape(from)) \(Self.escape(to))") }
 
@@ -354,7 +388,11 @@ final class SFTPSession {
         } else {
             date = oldFormatter.date(from: "\(stamp) \(fields[7])")
         }
-        return SFTPEntry(path: path, name: (path as NSString).lastPathComponent, type: type, size: size, date: date)
+        var entry = SFTPEntry(path: path, name: (path as NSString).lastPathComponent, type: type, size: size, date: date)
+        entry.mode = String(fields[0])
+        entry.owner = String(fields[2])
+        entry.group = String(fields[3])
+        return entry
     }
 }
 
