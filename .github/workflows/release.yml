@@ -117,10 +117,22 @@ jobs:
           lipo -info build/iBaobab.app/Contents/MacOS/iBaobab
           echo "path=$DMG" >> "$GITHUB_OUTPUT"
 
+      - name: Signature de mise à jour d'iBaobab
+        id: sig_ibaobab
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          DMG="${{ steps.dmg_ibaobab.outputs.path }}"
+          [[ -n "$UPDATE_SIGNING_KEY" ]] || exit 0
+          swift Tools/sign-update.swift "$DMG" > "$DMG.sig"
+          echo "path=$DMG.sig" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: iBaobab-${{ steps.version.outputs.version }}
-          path: ${{ steps.dmg_ibaobab.outputs.path }}
+          path: |
+            ${{ steps.dmg_ibaobab.outputs.path }}
+            ${{ steps.sig_ibaobab.outputs.path }}
           retention-days: 30
 
       - name: Release GitHub
@@ -128,7 +140,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" ${{ steps.sig.outputs.path }} "${{ steps.dmg_ibaobab.outputs.path }}" \
+          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" ${{ steps.sig.outputs.path }} "${{ steps.dmg_ibaobab.outputs.path }}" ${{ steps.sig_ibaobab.outputs.path }} \
             --title "Enhanced File Manager ${{ steps.version.outputs.version }}" \
             --notes "Application non notarisée : au premier lancement, clic droit sur l'app › Ouvrir, ou \`xattr -dr com.apple.quarantine \"/Applications/Enhanced File Manager.app\"\`."
 

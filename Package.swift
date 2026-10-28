@@ -33,7 +33,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "iBaobab",
-            dependencies: ["DiskUsageKit"],
+            dependencies: ["DiskUsageKit", "UpdateKit"],
             path: "Sources/iBaobab",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

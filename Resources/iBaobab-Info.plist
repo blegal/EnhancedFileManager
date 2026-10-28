@@ -16,6 +16,9 @@
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
+    <!-- Mise à jour automatique (UpdateKit) : même dépôt, même release et même clé qu'Enhanced File Manager. -->
+    <key>UpdateRepository</key><string>blegal/EnhancedFileManager</string>
+    <key>UpdatePublicKey</key><string>eYUjSvWIN4/67jfnPhmK1xvHFGWEqsdl76wy1Sg9/hg=</string>
     <!-- Un dossier peut être déposé sur l'icône du Dock (iBaobab ne devient jamais l'application par défaut). -->
     <key>CFBundleDocumentTypes</key>
     <array>

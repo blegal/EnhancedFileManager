@@ -211,6 +211,8 @@ Tools/make-dmg.sh iBaobab  # produit build/iBaobab-<version>.dmg
 - **Onglets natifs** : chaque analyse s'ouvre dans un onglet. ⌘clic sur un dossier (graphique, liste ou fil d'Ariane) ou « Ouvrir dans un nouvel onglet » du menu contextuel ouvre un sous-dossier à côté, sans nouvelle analyse (l'arbre est partagé). ⌘T ou le bouton « + » ouvre un nouvel accueil, ⇧⌘H revient à l'accueil.
 - **Page d'analyse** : la même que dans Enhanced File Manager. Les sept vues sont accessibles par les icônes ou par ⌘1 … ⌘7 (carte épurée par défaut), avec les couleurs par type, ancienneté ou branche. On navigue en cliquant dans un dossier, avec le fil d'Ariane, précédent / suivant (⌘[ / ⌘]) et le dossier parent (⌘↑ ou ⌫). Le survol affiche la taille, la part du parent, le nombre de fichiers, les types principaux et la date. Les actions sont « Afficher dans le Finder » (⌥⌘R), « Placer dans la corbeille » (menu contextuel) et « Analyser de nouveau » (⌘R).
 
+iBaobab se met à jour comme Enhanced File Manager (UpdateKit, menu **iBaobab › Rechercher les mises à jour…**) : les deux applications sont publiées dans la même release, chacune avec son DMG signé (`iBaobab-<version>.dmg` et `.sig`).
+
 L'identifiant est `local.iBaobab` (`Resources/iBaobab-Info.plist`). L'icône est dessinée par `Tools/make-icons.swift` et s'installe avec `Tools/set-app-icon.sh iBaobab`. Le workflow GitHub produit aussi `iBaobab-<version>.dmg` (binaire universel), en artefact et dans les releases.
 
 ## Actions personnalisées

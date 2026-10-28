@@ -1,5 +1,6 @@
 import AppKit
 import DiskUsageKit
+import UpdateKit
 
 /// Barre de menus d'iBaobab (actions envoyées au premier répondeur).
 enum MainMenu {
@@ -8,6 +9,8 @@ enum MainMenu {
 
         let app = submenu(main, "iBaobab")
         app.addItem(withTitle: "À propos d'iBaobab", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
+        app.addItem(withTitle: "Rechercher les mises à jour…", action: #selector(Updater.checkForUpdates(_:)), keyEquivalent: "")
+            .target = MainActor.assumeIsolated { Updater.shared }
         app.addItem(.separator())
         let services = NSMenu()
         app.addItem(withTitle: "Services", action: nil, keyEquivalent: "").submenu = services

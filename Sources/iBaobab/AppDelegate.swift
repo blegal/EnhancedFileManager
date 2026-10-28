@@ -1,5 +1,6 @@
 import AppKit
 import DiskUsageKit
+import UpdateKit
 
 /// Une fenêtre par onglet (onglets natifs) : l'accueil, puis une analyse par onglet.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         pendingURLs.forEach { openAnalysis($0, beside: home) }
         pendingURLs = []
         NSApp.activate()
+        Updater.shared.checkAtLaunch()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
