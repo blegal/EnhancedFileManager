@@ -56,14 +56,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.tabbingMode = .preferred
         window.delegate = self
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 560, height: 420)
+        window.minSize = NSSize(width: 520, height: 420)
         if let existing = existing ?? windows.last {
             window.setFrame(existing.frame, display: false)
             existing.addTabbedWindow(window, ordered: .above)
         } else {
-            window.setContentSize(NSSize(width: 1120, height: 760))
+            // Fenêtre compacte au lancement ; sa taille est ensuite retenue.
+            window.setContentSize(NSSize(width: 760, height: 680))
             window.center()
-            window.setFrameAutosaveName("iBaobab")
+            window.setFrameAutosaveName("iBaobab.fenetre")
         }
         windows.append(window)
         window.makeKeyAndOrderFront(nil)

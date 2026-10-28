@@ -12,6 +12,8 @@ package final class DiskUsageView: NSView {
     /// Facultatif : ⌘clic et « Ouvrir dans un nouvel onglet » sur un dossier.
     package var onOpenInNewTab: ((URL) -> Void)?
     package var onTrash: ((URL) -> Void)?
+    /// Facultatif : fin d'une analyse (dossier analysé, taille totale).
+    package var onScanFinished: ((URL, Int64) -> Void)?
 
     let chart = DiskChartView()
     private let list = DiskListView()
@@ -200,6 +202,7 @@ package final class DiskUsageView: NSView {
                 tree = result
                 let elapsed = Date().timeIntervalSince(started)
                 statusLabel.stringValue = "\(result.count.formatted()) fichiers · \(Format.size(result.size)) · analysé en \(elapsed.formatted(.number.precision(.fractionLength(1)))) s"
+                onScanFinished?(url, result.size)
                 show(requestedURL ?? url)
             }
         }

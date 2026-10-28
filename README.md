@@ -207,7 +207,7 @@ open build/iBaobab.app
 Tools/make-dmg.sh iBaobab  # produit build/iBaobab-<version>.dmg
 ```
 
-- **Accueil** : les volumes montés (icône, barre d'occupation, espace disponible sur le total, format), les dossiers usuels, le bouton « Choisir un dossier… » (⌘O) et le glisser-déposer d'un dossier sur la fenêtre ou sur l'icône du Dock.
+- **Accueil**, en listes groupées façon iOS dans une fenêtre compacte : les disques (barre d'occupation, espace libre sur le total), les dossiers usuels, les analyses récentes (taille et date, menu contextuel pour les retirer) et une zone où déposer un dossier, avec le bouton « Choisir un dossier… » (⌘O). On peut aussi déposer un dossier sur l'icône du Dock.
 - **Onglets natifs** : chaque analyse s'ouvre dans un onglet. ⌘clic sur un dossier (graphique, liste ou fil d'Ariane) ou « Ouvrir dans un nouvel onglet » du menu contextuel ouvre un sous-dossier à côté, sans nouvelle analyse (l'arbre est partagé). ⌘T ou le bouton « + » ouvre un nouvel accueil, ⇧⌘H revient à l'accueil.
 - **Page d'analyse** : la même que dans Enhanced File Manager. Les sept vues sont accessibles par les icônes ou par ⌘1 … ⌘7 (carte épurée par défaut), avec les couleurs par type, ancienneté ou branche. On navigue en cliquant dans un dossier, avec le fil d'Ariane, précédent / suivant (⌘[ / ⌘]) et le dossier parent (⌘↑ ou ⌫). Le survol affiche la taille, la part du parent, le nombre de fichiers, les types principaux et la date. Les actions sont « Afficher dans le Finder » (⌥⌘R), « Placer dans la corbeille » (menu contextuel) et « Analyser de nouveau » (⌘R).
 

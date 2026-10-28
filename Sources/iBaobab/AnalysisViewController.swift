@@ -26,7 +26,7 @@ final class AnalysisViewController: NSViewController, NSMenuItemValidation {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func loadView() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 1120, height: 760))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 680))
 
         history.segmentCount = 2
         history.trackingMode = .momentary
@@ -81,6 +81,7 @@ final class AnalysisViewController: NSViewController, NSMenuItemValidation {
         usage.onOpen = { url in NSWorkspace.shared.open(url) }
         usage.onOpenInNewTab = { [weak self] url in self?.onOpenInNewTab?(url) }
         usage.onTrash = { [weak self] url in self?.trash(url) }
+        usage.onScanFinished = { url, size in RecentAnalyses.add(url, size: size) }
     }
 
     override func viewDidLoad() {
