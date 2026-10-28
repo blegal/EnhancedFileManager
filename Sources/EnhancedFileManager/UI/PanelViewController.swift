@@ -736,6 +736,14 @@ final class PanelViewController: NSViewController {
         }
     }
 
+    /// État Git d'un élément quelconque du dépôt courant (vue en colonnes : éléments d'autres dossiers).
+    func gitState(at url: URL, isDirectory: Bool) -> GitFileState? {
+        guard let gitStatus, url.lastPathComponent != ".git" else { return nil }
+        let root = gitStatus.root.path, path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        guard path.hasPrefix(root + "/") else { return nil }
+        return gitStatus.state(forRelativePath: String(path.dropFirst(root.count + 1)), isDirectory: isDirectory)
+    }
+
     private func gitState(for item: FileItem) -> GitFileState? {
         guard let gitStatus, item.name != ".git" else { return nil }
         let path = gitRelativeDirectory.isEmpty ? item.name : gitRelativeDirectory + "/" + item.name
@@ -783,6 +791,7 @@ final class PanelViewController: NSViewController {
             collectionView.reloadData()
             collectionView.selectionIndexPaths = Set(selection.map { IndexPath(item: $0, section: 0) })
         }
+        if viewMode == .columns { refreshBrowserDecorations() }
     }
 
     // MARK: Navigation
@@ -1039,7 +1048,7 @@ final class PanelViewController: NSViewController {
         transfer(.copy, urls, to: currentURL)
     }
 
-    private func transfer(_ kind: TransferKind, _ urls: [URL], to destination: URL) {
+    func transfer(_ kind: TransferKind, _ urls: [URL], to destination: URL) {
         FileOperationCenter.shared.transfer(kind, sources: urls, to: destination, undoManager: undoManager) { [weak self] created in
             guard let self, destination.isSameLocation(as: currentURL), !created.isEmpty else { return }
             reload(selecting: created)
@@ -1630,7 +1639,7 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         return validatedOperation(info, sources: sources, destination: destination)
     }
 
-    fileprivate func validatedOperation(_ info: NSDraggingInfo, sources: [URL], destination: URL) -> NSDragOperation {
+    func validatedOperation(_ info: NSDraggingInfo, sources: [URL], destination: URL) -> NSDragOperation {
         if sources.contains(where: { destination.isInside($0) }) { return [] }
         let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
         if operation == .move, sources.allSatisfy({ $0.deletingLastPathComponent().isSameLocation(as: destination) }) { return [] }

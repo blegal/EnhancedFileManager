@@ -57,6 +57,9 @@ extension PanelViewController: NSBrowserDelegate {
         browser.backgroundColor = .clear
         browser.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
         browser.contextMenuProvider = { [weak self] in self?.contextMenu() }
+        browser.registerForDraggedTypes([.fileURL])
+        browser.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: false)
+        browser.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
     }
 
     /// Racine des colonnes : le dossier personnel si on y est, sinon la racine du volume.
@@ -119,9 +122,72 @@ extension PanelViewController: NSBrowserDelegate {
         attachment.image = icon
         attachment.bounds = NSRect(x: 0, y: -3, width: 16, height: 16)
         let text = NSMutableAttributedString(attachment: attachment)
-        text.append(NSAttributedString(string: "  " + item.name, attributes: [.font: NSFont.systemFont(ofSize: 13)]))
+        // Couleur Git du nom, lettre d'état et pastilles de tags, comme dans la liste.
+        let state = item.url.isFileURL ? gitState(at: item.url, isDirectory: item.isNavigableDirectory) : nil
+        var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13)]
+        if let color = state?.color { attributes[.foregroundColor] = color }
+        text.append(NSAttributedString(string: "  " + item.name, attributes: attributes))
+        if let state, !state.letter.isEmpty {
+            text.append(NSAttributedString(string: "  " + state.letter, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .bold), .foregroundColor: state.color]))
+        }
+        if item.url.isFileURL, !item.finderTags.isEmpty {
+            text.append(NSAttributedString(string: "  "))
+            text.append(FinderTags.dots(for: item.finderTags, size: 9))
+        }
         cell.lineBreakMode = .byTruncatingMiddle
         cell.attributedStringValue = text
+    }
+
+    /// Redessine les colonnes (état Git, tags) sans les recharger.
+    func refreshBrowserDecorations() {
+        var stack: [NSView] = [browser]
+        while let view = stack.popLast() {
+            view.needsDisplay = true
+            stack += view.subviews
+        }
+    }
+
+    // MARK: Glisser-déposer
+
+    func browser(_ browser: NSBrowser, canDragRowsWith rowIndexes: IndexSet, inColumn column: Int, with event: NSEvent) -> Bool { true }
+
+    func browser(_ browser: NSBrowser, writeRowsWith rowIndexes: IndexSet, inColumn column: Int, to pasteboard: NSPasteboard) -> Bool {
+        let urls = rowIndexes.compactMap { (browser.item(atRow: $0, inColumn: column) as? FileItem)?.url as NSURL? }
+        guard !urls.isEmpty else { return false }
+        pasteboard.clearContents()
+        return pasteboard.writeObjects(urls)
+    }
+
+    /// Dossier de dépôt : la ligne survolée si c'est un dossier, sinon le dossier de la colonne.
+    private func browserDropDestination(row: Int, column: Int, operation: NSBrowser.DropOperation) -> URL? {
+        if operation == .on, row >= 0, let item = browser.item(atRow: row, inColumn: column) as? FileItem, item.isNavigableDirectory {
+            return item.url
+        }
+        return (browser.parentForItems(inColumn: column) as? FileItem)?.url
+    }
+
+    func browser(_ browser: NSBrowser, validateDrop info: NSDraggingInfo, proposedRow row: UnsafeMutablePointer<Int>,
+                 column: UnsafeMutablePointer<Int>, dropOperation: UnsafeMutablePointer<NSBrowser.DropOperation>) -> NSDragOperation {
+        let sources = FileClipboard.fileURLs(from: info.draggingPasteboard)
+        guard !sources.isEmpty, let destination = browserDropDestination(row: row.pointee, column: column.pointee, operation: dropOperation.pointee),
+              !sources.contains(where: { $0.isSameLocation(as: destination) }) else { return [] }
+        let target = row.pointee >= 0 ? browser.item(atRow: row.pointee, inColumn: column.pointee) as? FileItem : nil
+        if dropOperation.pointee == .above || target?.isNavigableDirectory != true {
+            // Dépôt dans le dossier de la colonne (toute la colonne est mise en évidence).
+            row.pointee = -1
+            dropOperation.pointee = .on
+        }
+        return validatedOperation(info, sources: sources, destination: destination)
+    }
+
+    func browser(_ browser: NSBrowser, acceptDrop info: NSDraggingInfo, atRow row: Int, column: Int, dropOperation: NSBrowser.DropOperation) -> Bool {
+        let sources = FileClipboard.fileURLs(from: info.draggingPasteboard)
+        guard !sources.isEmpty, let destination = browserDropDestination(row: row, column: column, operation: dropOperation) else { return false }
+        let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
+        guard !operation.isEmpty else { return false }
+        activate(focusTable: false)
+        transfer(operation == .copy ? .copy : .move, sources, to: destination)
+        return true
     }
 
     // MARK: Synchronisation avec le panneau
