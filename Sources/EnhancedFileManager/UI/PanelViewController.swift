@@ -1304,6 +1304,11 @@ final class PanelViewController: NSViewController {
             menu.addItem(item)
         }
 
+        // Actions courantes en icônes, en tête du menu.
+        menu.addItem(quickActionsPalette(for: selection))
+        if !selection.isEmpty, !currentURL.isRemote { menu.addItem(tagsPalette(for: selection)) }
+        menu.addItem(.separator())
+
         if !selection.isEmpty {
             add("Ouvrir", #selector(openSelection(_:)), "arrow.up.forward.app")
             if selection.contains(where: \.isNavigableDirectory) {
@@ -1318,14 +1323,6 @@ final class PanelViewController: NSViewController {
             if let first = selection.first, !first.isNavigableDirectory, !first.url.isRemote {
                 menu.addItem(openWithMenu(for: first.url))
             }
-            if !currentURL.isRemote { add("Coup d’œil", #selector(quickLook(_:)), "eye") }
-            menu.addItem(.separator())
-            add("Couper", #selector(cut(_:)), "scissors")
-            add("Copier", #selector(copy(_:)), "doc.on.doc")
-        }
-        if FileClipboard.hasFiles { add("Coller", #selector(paste(_:)), "doc.on.clipboard") }
-        if !selection.isEmpty {
-            add("Dupliquer", #selector(duplicate(_:)), "plus.rectangle.on.rectangle")
             let targets = host?.targetPanels(for: self) ?? []
             if !targets.isEmpty {
                 menu.addItem(panelSubmenu("Copier vers", #selector(copyToOtherPanel(_:)), targets, "arrow.right.doc.on.clipboard"))
@@ -1355,15 +1352,11 @@ final class PanelViewController: NSViewController {
                     }
                 }
             }
-            menu.addItem(.separator())
-            if selection.count == 1 { add("Renommer", #selector(renameSelection(_:)), "pencil") }
-            if selection.count > 1 { add("Renommer par lot…", #selector(batchRename(_:)), "pencil.and.list.clipboard") }
-            add(currentURL.isRemote ? "Supprimer du serveur…" : "Placer dans la corbeille", #selector(moveToTrash(_:)), "trash")
         }
         menu.addItem(.separator())
-        add("Nouveau dossier", #selector(newFolder(_:)), "folder.badge.plus")
+        if !selection.isEmpty { add("Nouveau dossier", #selector(newFolder(_:)), "folder.badge.plus") }
         if !currentURL.isRemote { add("Ajouter aux favoris", #selector(addToFavorites(_:)), "star") }
-        add("Copier le chemin", #selector(copyPath(_:)), "link")
+        if !selection.isEmpty { add("Copier le chemin", #selector(copyPath(_:)), "link") }
         if !currentURL.isRemote {
             add("Afficher dans le Finder", #selector(revealInFinder(_:)), "macwindow")
             add("Ouvrir dans le Terminal", #selector(openInTerminal(_:)), "terminal")
