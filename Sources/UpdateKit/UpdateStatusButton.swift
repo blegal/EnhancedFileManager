@@ -20,6 +20,21 @@ package final class UpdateStatusButton: NSButton {
         update()
     }
 
+    /// Indicateur prêt pour un `NSTitlebarAccessoryViewController` : l'accessoire prend
+    /// la taille du cadre de sa vue, d'où un conteneur de taille fixe.
+    package static func titlebarAccessory() -> NSView {
+        let button = UpdateStatusButton(bezelStyle: .accessoryBarAction)
+        button.isBordered = false
+        button.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 40, height: 28))
+        container.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.centerXAnchor.constraint(equalTo: container.centerXAnchor, constant: -4),
+            button.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+        return container
+    }
+
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     isolated deinit {

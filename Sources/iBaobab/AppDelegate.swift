@@ -67,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.minSize = NSSize(width: 520, height: 420)
         let accessory = NSTitlebarAccessoryViewController()
         accessory.layoutAttribute = .trailing
-        accessory.view = MainActor.assumeIsolated { UpdateStatusButton(bezelStyle: .accessoryBarAction) }
+        accessory.view = MainActor.assumeIsolated { UpdateStatusButton.titlebarAccessory() }
         window.addTitlebarAccessoryViewController(accessory)
         if let existing = existing ?? windows.last {
             window.setFrame(existing.frame, display: false)
