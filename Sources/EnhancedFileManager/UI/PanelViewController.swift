@@ -128,7 +128,7 @@ final class PanelViewController: NSViewController {
 
     /// La vue qui reçoit le clavier dans le mode courant.
     var focusView: NSView {
-        if isShowingDiskUsage { return diskUsageView.chart }
+        if isShowingDiskUsage { return diskUsageView.focusView }
         return switch viewMode {
         case .icons: collectionView
         case .columns: browser

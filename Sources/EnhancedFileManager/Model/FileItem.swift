@@ -84,13 +84,7 @@ final class FileItem: NSObject {
     }
 }
 
-enum Format {
-    private static let byteFormatter: ByteCountFormatter = {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        return f
-    }()
-
+extension Format {
     static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .short
@@ -99,46 +93,12 @@ enum Format {
         return f
     }()
 
-    static func size(_ bytes: Int64) -> String { byteFormatter.string(fromByteCount: bytes) }
-
-    static func items(_ count: Int) -> String { count <= 1 ? "\(count) élément" : "\(count) éléments" }
-
-    static func availableCapacity(at url: URL) -> Int64? {
-        let keys: Set<URLResourceKey> = [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey]
-        guard let values = try? url.resourceValues(forKeys: keys) else { return nil }
-        if let important = values.volumeAvailableCapacityForImportantUsage, important > 0 { return important }
-        return values.volumeAvailableCapacity.map(Int64.init)
-    }
-
     static func freeSpace(at url: URL) -> String? {
         availableCapacity(at: url).map { "\(size($0)) disponibles" }
     }
 }
 
 extension URL {
-    /// Emplacement sur un serveur SFTP (sftp://utilisateur@hôte:port/chemin).
-    var isRemote: Bool { scheme == "sftp" }
-
-    /// Chemin normalisé utilisé pour comparer des emplacements (inclut le serveur pour SFTP).
-    var normalizedPath: String {
-        guard isRemote else { return standardizedFileURL.path }
-        let path = standardized.path
-        return "sftp://\(sftpKey)" + (path.isEmpty ? "/" : path)
-    }
-
-    /// Identifiant de connexion « utilisateur@hôte:port ».
-    var sftpKey: String {
-        "\(user.map { $0 + "@" } ?? "")\(host ?? ""):\(port ?? 22)"
-    }
-
-    func isSameLocation(as other: URL) -> Bool { normalizedPath == other.normalizedPath }
-
-    /// Vrai si `self` est `other` ou se trouve à l'intérieur.
-    func isInside(_ other: URL) -> Bool {
-        let mine = normalizedPath, theirs = other.normalizedPath
-        return mine == theirs || mine.hasPrefix(theirs.hasSuffix("/") ? theirs : theirs + "/")
-    }
-
     var isExistingDirectory: Bool {
         guard isFileURL else { return false }
         var isDir: ObjCBool = false

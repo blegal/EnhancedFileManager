@@ -1,10 +1,10 @@
 import AppKit
 
 /// Les sept représentations de l'occupation du disque.
-enum DiskChartStyle: Int, CaseIterable {
+package enum DiskChartStyle: Int, CaseIterable {
     case cushion, flat, sunburst, icicle, histogram, donut, baobab
 
-    var title: String {
+    package var title: String {
         switch self {
         case .cushion: "Carte coussin"
         case .flat: "Carte épurée"
@@ -16,7 +16,7 @@ enum DiskChartStyle: Int, CaseIterable {
         }
     }
 
-    var symbol: String {
+    package var symbol: String {
         switch self {
         case .cushion: "square.grid.3x3.square"
         case .flat: "rectangle.split.3x3"

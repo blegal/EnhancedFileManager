@@ -2,13 +2,16 @@ import AppKit
 
 /// Vue « Occupation du disque » d'un panneau : choix de la représentation, analyse en arrière-plan,
 /// graphique et, pour certaines représentations, liste synchronisée.
-final class DiskUsageView: NSView {
-    var onNavigate: ((URL) -> Void)?
-    var onUp: (() -> Void)?
-    var onExit: (() -> Void)?
-    var onOpen: ((URL) -> Void)?
-    var onRevealInList: ((URL) -> Void)?
-    var onTrash: ((URL) -> Void)?
+package final class DiskUsageView: NSView {
+    package var onNavigate: ((URL) -> Void)?
+    package var onUp: (() -> Void)?
+    package var onExit: (() -> Void)?
+    package var onOpen: ((URL) -> Void)?
+    /// Facultatif : « Afficher dans la liste » n'apparaît que s'il est défini.
+    package var onRevealInList: ((URL) -> Void)?
+    /// Facultatif : ⌘clic et « Ouvrir dans un nouvel onglet » sur un dossier.
+    package var onOpenInNewTab: ((URL) -> Void)?
+    package var onTrash: ((URL) -> Void)?
 
     let chart = DiskChartView()
     private let list = DiskListView()
@@ -26,7 +29,10 @@ final class DiskUsageView: NSView {
     private var progressTimer: Timer?
     private var requestedURL: URL?
 
-    var style: DiskChartStyle = .flat {
+    /// Vue qui reçoit le focus clavier.
+    package var focusView: NSView { chart }
+
+    package var style: DiskChartStyle = .flat {
         didSet {
             styleControl.selectedSegment = style.rawValue
             chart.style = style
@@ -37,7 +43,7 @@ final class DiskUsageView: NSView {
         }
     }
 
-    init() {
+    package init() {
         styleControl = NSSegmentedControl(images: DiskChartStyle.allCases.map { NSImage(systemSymbolName: $0.symbol, accessibilityDescription: $0.title)! },
                                           trackingMode: .selectOne, target: nil, action: nil)
         super.init(frame: .zero)
@@ -106,7 +112,7 @@ final class DiskUsageView: NSView {
             self?.showInfo(node)
             self?.list.highlight(node)
         }
-        chart.onDive = { [weak self] node in self?.onNavigate?(node.url) }
+        chart.onDive = { [weak self] node in self?.dive(into: node.url) }
         chart.onUp = { [weak self] in self?.onUp?() }
         chart.onOpen = { [weak self] node in self?.onOpen?(node.url) }
         chart.menuProvider = { [weak self] node in self?.menu(for: node) }
@@ -116,19 +122,19 @@ final class DiskUsageView: NSView {
             self?.chart.highlight(node)
         }
         list.onDive = { [weak self] node in
-            if node.isDirectory { self?.onNavigate?(node.url) } else if !node.isAggregate { self?.onOpen?(node.url) }
+            if node.isDirectory { self?.dive(into: node.url) } else if !node.isAggregate { self?.onOpen?(node.url) }
         }
         list.menuProvider = { [weak self] node in self?.menu(for: node) }
         list.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
         list.colorProvider = { [weak self] node in self?.listColor(node) ?? .gray }
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    package required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     // MARK: Analyse
 
     /// Affiche un dossier : réutilise l'arbre s'il le contient, sinon lance une analyse.
-    func show(_ url: URL, forceRescan: Bool = false) {
+    package func show(_ url: URL, forceRescan: Bool = false) {
         requestedURL = url
         if !forceRescan, let tree, let rootURL = tree.rootURL, url.isInside(rootURL) {
             let root = rootURL.standardizedFileURL.path, target = url.standardizedFileURL.path
@@ -144,8 +150,17 @@ final class DiskUsageView: NSView {
         startScan(url, reuse: reuse)
     }
 
+    /// Affiche un dossier en partageant l'arbre déjà analysé par une autre vue (nouvel onglet).
+    package func show(_ url: URL, sharingTreeOf other: DiskUsageView) {
+        if tree == nil, let shared = other.tree {
+            tree = shared
+            statusLabel.stringValue = "\(shared.count.formatted()) fichiers · \(Format.size(shared.size))"
+        }
+        show(url)
+    }
+
     /// Libère l'arbre (sortie du mode) et annule l'analyse en cours.
-    func stop() {
+    package func stop() {
         scanner?.cancel()
         scanner = nil
         progressTimer?.invalidate()
@@ -165,7 +180,7 @@ final class DiskUsageView: NSView {
         infoLabel.stringValue = ""
         spinner.startAnimation(nil)
         let started = Date()
-        let name = BreadcrumbView.displayName(url)
+        let name = url.displayName
         statusLabel.stringValue = "Analyse de « \(name) »…"
         progressTimer?.invalidate()
         progressTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self, weak scanner] _ in
@@ -197,7 +212,7 @@ final class DiskUsageView: NSView {
     }
 
     /// Retire un élément mis à la corbeille et redessine.
-    func remove(_ url: URL) {
+    package func remove(_ url: URL) {
         guard let current = chart.root, let tree, let rootURL = tree.rootURL, url.isInside(rootURL) else { return }
         let root = rootURL.standardizedFileURL.path
         var components = url.standardizedFileURL.path.dropFirst(root == "/" ? 1 : root.count + 1).split(separator: "/").map(String.init)
@@ -218,10 +233,20 @@ final class DiskUsageView: NSView {
         list.reloadColors()
     }
 
-    @objc private func refresh(_ sender: Any?) {
+    @objc private func refresh(_ sender: Any?) { rescan() }
+
+    /// Analyse de nouveau le dossier affiché.
+    package func rescan() {
         guard let url = requestedURL else { return }
         tree = nil
         show(url, forceRescan: true)
+    }
+
+    /// Vrai pendant une analyse.
+    package var isScanning: Bool { scanner != nil }
+
+    private func dive(into url: URL) {
+        if NSEvent.modifierFlags.contains(.command), let onOpenInNewTab { onOpenInNewTab(url) } else { onNavigate?(url) }
     }
 
     private func handleKey(_ event: NSEvent) -> Bool {
@@ -270,8 +295,13 @@ final class DiskUsageView: NSView {
         if node.isDirectory, node !== chart.root {
             add("Explorer « \(node.name) »", "arrow.down.right.circle") { [weak self] in self?.onNavigate?(url) }
         }
+        if node.isDirectory, onOpenInNewTab != nil {
+            add("Ouvrir dans un nouvel onglet", "plus.square.on.square") { [weak self] in self?.onOpenInNewTab?(url) }
+        }
         add("Ouvrir", "arrow.up.forward.app") { [weak self] in self?.onOpen?(url) }
-        add("Afficher dans la liste", "list.bullet") { [weak self] in self?.onRevealInList?(url) }
+        if onRevealInList != nil {
+            add("Afficher dans la liste", "list.bullet") { [weak self] in self?.onRevealInList?(url) }
+        }
         add("Afficher dans le Finder", "macwindow") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         if node !== chart.root, node.parent != nil {
             menu.addItem(.separator())

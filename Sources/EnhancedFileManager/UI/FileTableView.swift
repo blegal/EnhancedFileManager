@@ -378,10 +378,7 @@ final class BreadcrumbView: NSView {
         onNavigate?(URL(fileURLWithPath: path, isDirectory: true))
     }
 
-    static func displayName(_ url: URL) -> String {
-        if url.isRemote, url.path == "/" || url.path.isEmpty { return url.host ?? "SFTP" }
-        return url.path == "/" ? (FileManager.default.displayName(atPath: "/")) : url.lastPathComponent
-    }
+    static func displayName(_ url: URL) -> String { url.displayName }
 
     static func volumeRoot(of url: URL) -> URL {
         let volume = (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume

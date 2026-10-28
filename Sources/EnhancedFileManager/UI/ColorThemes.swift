@@ -202,17 +202,6 @@ enum Theme {
 }
 
 extension NSColor {
-    /// « #RRGGBB » ou « #RRGGBBAA ».
-    convenience init(hex: String) {
-        var value: UInt64 = 0
-        let digits = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        Scanner(string: digits).scanHexInt64(&value)
-        let hasAlpha = digits.count == 8
-        let rgb = hasAlpha ? value >> 8 : value
-        self.init(srgbRed: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255,
-                  blue: CGFloat(rgb & 0xFF) / 255, alpha: hasAlpha ? CGFloat(value & 0xFF) / 255 : 1)
-    }
-
     var luminance: CGFloat {
         guard let rgb = usingColorSpace(.sRGB) else { return 0.5 }
         return 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
