@@ -11,8 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.mainMenu = MainMenu.build()
         NSWindow.allowsAutomaticWindowTabbing = true
         let home = openHome(beside: nil)
-        // Les onglets sont au cœur de l'app : la barre reste visible même avec un seul onglet.
-        if home.tabGroup?.isTabBarVisible == false { home.toggleTabBar(nil) }
+        // Barre d'onglets seulement à partir de deux onglets (le système l'affiche alors de lui-même).
+        if home.tabGroup?.isTabBarVisible == true, home.tabbedWindows == nil { home.toggleTabBar(nil) }
         launched = true
         pendingURLs.forEach { openAnalysis($0, beside: home) }
         pendingURLs = []
@@ -50,7 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func show(_ controller: NSViewController, title: String, beside existing: NSWindow?) -> NSWindow {
         let window = NSWindow(contentViewController: controller)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        // Barre de titre fondue dans le contenu, sans titre : le nom n'apparaît que sur les onglets.
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.title = title
         window.tabbingIdentifier = "iBaobab"
         window.tabbingMode = .preferred

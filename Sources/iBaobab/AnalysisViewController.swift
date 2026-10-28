@@ -62,7 +62,7 @@ final class AnalysisViewController: NSViewController, NSMenuItemValidation {
             root.addSubview(view)
         }
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
+            bar.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 8),
             bar.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
             bar.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
             separator.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 8),
