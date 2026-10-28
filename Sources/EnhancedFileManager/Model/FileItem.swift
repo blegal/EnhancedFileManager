@@ -18,6 +18,10 @@ final class FileItem {
     let size: Int64?
     let modificationDate: Date?
     private let remoteKind: String?
+    /// Taille d'un dossier, une fois calculée à la demande (⌥Espace).
+    var folderSize: Int64?
+    /// Taille du fichier, ou du dossier si elle a été calculée.
+    var effectiveSize: Int64? { size ?? folderSize }
 
     /// Description du type (« Document PDF »…), mise en cache par extension.
     var kind: String { remoteKind ?? IconCache.kind(forExtension: url.pathExtension, isDirectory: isDirectory, isPackage: isPackage) }

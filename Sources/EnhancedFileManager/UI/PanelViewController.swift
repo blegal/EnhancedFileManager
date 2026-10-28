@@ -73,7 +73,12 @@ final class PanelViewController: NSViewController {
     private var cutPaths: Set<String> = []
     private var renamingRow: Int?
     private var reloadDeferred = false
-    private var sortDescriptor = NSSortDescriptor(key: "name", ascending: true)
+    var sortDescriptor = NSSortDescriptor(key: "name", ascending: true)
+
+    // Tailles de dossiers calculées à la demande (par chemin), valables pour le dossier affiché.
+    var folderSizes: [String: Int64] = [:]
+    var computingFolders: Set<String> = []
+    var folderSizeGeneration = 0
 
     // Git
     private let gitLabel = NSTextField(labelWithString: "")
@@ -475,6 +480,9 @@ final class PanelViewController: NSViewController {
     private func showCurrentTab() {
         if isSearching { endSearch(reloadListing: false) }
         if isShown { RecentFolders.record(currentURL) }
+        folderSizeGeneration += 1
+        folderSizes = [:]
+        computingFolders = []
         if currentURL.isRemote || !isShown { watcher.stop() } else { watcher.watch(currentURL) }
         breadcrumb.show(currentURL)
         updateTabBar()
@@ -519,6 +527,7 @@ final class PanelViewController: NSViewController {
         switch result {
         case .success(let list):
             allItems = list
+            for item in list where item.isNavigableDirectory { item.folderSize = folderSizes[item.url.normalizedPath] }
             let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
             items = filter.map { match in list.filter { match($0.name) } } ?? list
             loadError = nil
@@ -557,7 +566,7 @@ final class PanelViewController: NSViewController {
             if a.isNavigableDirectory != b.isNavigableDirectory { return a.isNavigableDirectory }
             var result: ComparisonResult
             switch key {
-            case "size": result = Self.compare(a.size ?? -1, b.size ?? -1)
+            case "size": result = Self.compare(a.effectiveSize ?? -1, b.effectiveSize ?? -1)
             case "date": result = Self.compare(a.modificationDate ?? .distantPast, b.modificationDate ?? .distantPast)
             case "kind": result = a.kind.localizedStandardCompare(b.kind)
             default: result = .orderedSame
@@ -571,7 +580,7 @@ final class PanelViewController: NSViewController {
         a < b ? .orderedAscending : (a > b ? .orderedDescending : .orderedSame)
     }
 
-    private func updateInfo() {
+    func updateInfo() {
         if let loadError {
             infoLabel.stringValue = "⚠︎ \(loadError)"
             return
@@ -588,7 +597,7 @@ final class PanelViewController: NSViewController {
         if selection.isEmpty {
             text = Format.items(items.count)
         } else {
-            let bytes = selection.compactMap(\.size).reduce(0, +)
+            let bytes = selection.compactMap(\.effectiveSize).reduce(0, +)
             text = "\(selection.count) sur \(items.count) sélectionné\(selection.count > 1 ? "s" : "") (\(Format.size(bytes)))"
         }
         if let freeSpace { text += ", \(freeSpace)" }
@@ -1213,6 +1222,10 @@ final class PanelViewController: NSViewController {
             host?.panel(self, focusNextBackwards: modifiers == .shift)
         case 53 where modifiers.isEmpty && isSearching: // Échap ferme la recherche
             endSearch()
+        case 49 where modifiers == .option: // ⌥Espace : taille des dossiers sélectionnés
+            computeSelectedFolderSizes(nil)
+        case 49 where modifiers == [.option, .shift]: // ⇧⌥Espace : tous les dossiers
+            computeAllFolderSizes(nil)
         case 49 where modifiers.isEmpty: // Espace
             quickLook(nil)
         default:
@@ -1427,7 +1440,7 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         if field.font?.pointSize != textSize { field.font = .monospacedDigitSystemFont(ofSize: textSize, weight: .regular) }
         switch identifier {
         case .size:
-            field.stringValue = item.size.map(Format.size) ?? "—"
+            field.stringValue = item.isNavigableDirectory ? folderSizeText(for: item) : (item.size.map(Format.size) ?? "—")
             field.alignment = .right
         case .date:
             field.stringValue = item.modificationDate.map { Format.dateFormatter.string(from: $0) } ?? ""

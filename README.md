@@ -30,6 +30,7 @@ Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https:/
 | Précédent / Suivant | ⌘[ / ⌘] (appui long sur les boutons : historique) |
 | Dossiers récents | Aller › Dossiers récents |
 | Coup d’œil | Espace ou ⌘Y |
+| Taille des dossiers sélectionnés / de tous les dossiers | ⌥Espace / ⇧⌥Espace |
 | Panneau suivant / précédent | ⇥ / ⇧⇥ |
 | 1, 2, 3, 4 panneaux | ⌥⌘1 … ⌥⌘4 |
 | Nouvel onglet / fermer l’onglet | ⌘T / ⌘W |

@@ -114,6 +114,8 @@ enum MainMenu {
             item("Réduire", #selector(Panel.decreaseIconSize(_:)), "-"),
             item("Taille par défaut", #selector(Panel.resetZoom(_:)), "0"),
             sortMenu,
+            item("Calculer la taille des dossiers sélectionnés", #selector(Panel.computeSelectedFolderSizes(_:)), " ", .option),
+            item("Calculer la taille de tous les dossiers", #selector(Panel.computeAllFolderSizes(_:)), " ", [.option, .shift]),
             themeMenu,
             colorThemeMenu,
             separator(),
