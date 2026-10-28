@@ -12,6 +12,27 @@ open build/EnhancedFileManager.app
 
 Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) pour le terminal intégré.
 
+## Image disque (DMG) et GitHub Actions
+
+```bash
+UNIVERSAL=1 VERSION=0.2.0 ./build.sh   # binaire Apple Silicon + Intel, version dans Info.plist
+Tools/make-dmg.sh                      # produit build/EnhancedFileManager-0.2.0.dmg
+```
+
+Le workflow `.github/workflows/release.yml` construit le DMG à chaque push sur `main` (artefact du run, 30 jours) et le publie dans une release GitHub pour chaque tag `v*` :
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+**Signature.** Sans compte Apple Developer, l'application est signée ad hoc : elle n'est pas notarisée, donc au premier lancement d'un DMG téléchargé, macOS la bloque. Il faut faire clic droit › Ouvrir (ou Réglages Système › Confidentialité et sécurité › Ouvrir quand même), ou retirer l'attribut de quarantaine :
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Enhanced File Manager.app"
+```
+
+Facultatif : pour signer avec un certificat stable (auto-signé, ou Developer ID plus tard), ajoutez dans les secrets du dépôt `MACOS_CERTIFICATE_P12` (le .p12 encodé en base64) et `MACOS_CERTIFICATE_PASSWORD`. Une identité stable évite que macOS redemande les autorisations (dossiers, trousseau) après chaque mise à jour.
+
 ## Raccourcis
 
 | Action | Raccourci |

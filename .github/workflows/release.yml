@@ -1,0 +1,97 @@
+# Compile l'application, la signe et produit une image disque (.dmg).
+# - À chaque push sur main et à la demande : le DMG est un artefact du run (conservé 30 jours).
+# - Sur un tag v* (ex. v0.2.0) : le DMG est aussi publié dans une release GitHub.
+#
+# Signature : ad hoc par défaut (aucun compte Apple). Si les secrets MACOS_CERTIFICATE_P12
+# (certificat .p12 encodé en base64) et MACOS_CERTIFICATE_PASSWORD existent, l'application est
+# signée avec ce certificat (par exemple un certificat auto-signé, ou Developer ID plus tard).
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            BASE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+            VERSION="$BASE-dev.$GITHUB_RUN_NUMBER"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Certificat de signature (facultatif)
+        id: cert
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [[ -z "$P12" ]]; then
+            echo "Pas de certificat : signature ad hoc."
+            echo "identity=-" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          # Un certificat auto-signé n'est pas « valide » pour le système : on prend l'empreinte SHA-1.
+          IDENTITY=$(security find-identity -p codesigning "$KEYCHAIN" | awk '/\)/ {print $2; exit}')
+          [[ -n "$IDENTITY" ]] || { echo "Aucune identité de signature dans le certificat" >&2; exit 1; }
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+
+      - name: Compilation (binaire universel)
+        env:
+          UNIVERSAL: "1"
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: ./build.sh
+
+      - name: Image disque
+        id: dmg
+        env:
+          SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: |
+          DMG=$(Tools/make-dmg.sh)
+          codesign --verify --deep --strict --verbose=2 build/EnhancedFileManager.app
+          lipo -info build/EnhancedFileManager.app/Contents/MacOS/EnhancedFileManager
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EnhancedFileManager-${{ steps.version.outputs.version }}
+          path: ${{ steps.dmg.outputs.path }}
+          retention-days: 30
+
+      - name: Release GitHub
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" \
+            --title "Enhanced File Manager ${{ steps.version.outputs.version }}" \
+            --notes "Application non notarisée : au premier lancement, clic droit sur l'app › Ouvrir, ou \`xattr -dr com.apple.quarantine \"/Applications/Enhanced File Manager.app\"\`."
+
+      - name: Nettoyage du trousseau
+        if: always() && steps.cert.outputs.identity != '-' && steps.cert.outputs.identity != ''
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
