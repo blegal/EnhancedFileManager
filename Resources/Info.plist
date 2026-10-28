@@ -8,14 +8,14 @@
     <key>CFBundleExecutable</key><string>EnhancedFileManager</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.2.4</string>
-    <key>CFBundleVersion</key><string>5</string>
+    <key>CFBundleShortVersionString</key><string>0.2.5</string>
+    <key>CFBundleVersion</key><string>6</string>
     <key>CFBundleDevelopmentRegion</key><string>fr</string>
     <key>CFBundleLocalizations</key><array><string>fr</string></array>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>UpdateRepository</key><string>blegal/EnhancedFileManager</string>
-    <key>UpdatePublicKey</key><string>eYUjSvWIN4/67jfnPhmK1xvHFGWEqsdl76wy1Sg9/hg=</string>
+    <key>UpdatePublicKey</key><string>1LJIeOnCeQQCPXqTPLYAPhLTHrOq+a3jkqFqzepOGMk=</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSDesktopFolderUsageDescription</key><string>Afficher et gérer les fichiers du Bureau.</string>

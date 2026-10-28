@@ -1,11 +1,10 @@
 #!/bin/zsh
-# Empaquette une application compilée dans une image disque compressée :
-#   Tools/make-dmg.sh            build/EnhancedFileManager.app → build/EnhancedFileManager-<version>.dmg
-#   Tools/make-dmg.sh iBaobab    build/iBaobab.app             → build/iBaobab-<version>.dmg
+# Empaquette build/EnhancedFileManager.app dans une image disque compressée :
+# build/EnhancedFileManager-<version>.dmg
 # L'image contient l'application et un raccourci vers /Applications (glisser-déposer pour installer).
 set -euo pipefail
 cd "${0:A:h}/.."
-PRODUCT=${1:-EnhancedFileManager}
+PRODUCT=EnhancedFileManager
 APP=build/$PRODUCT.app
 [[ -d "$APP" ]] || { echo "Lancez d'abord ./build.sh (PRODUCT=$PRODUCT)" >&2; exit 1 }
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")

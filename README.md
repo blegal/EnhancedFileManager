@@ -2,7 +2,7 @@
 
 Gestionnaire de fichiers macOS natif (AppKit, Swift) à 1, 2, 3 ou 4 panneaux avec onglets,
 dans l’esprit de ForkLift / Path Finder / muCommander. Aucune dépendance externe.
-Le dépôt contient aussi [iBaobab](#ibaobab), un analyseur d'occupation des disques.
+Le mode d'occupation du disque (⌘5) et la mise à jour automatique viennent des bibliothèques `DiskUsageKit` et `UpdateKit`, partagées avec [iBaobab](https://github.com/blegal/iBaobab), l'analyseur d'occupation des disques (paquet SwiftPM `blegal/iBaobab`).
 
 ## Compiler et lancer
 
@@ -39,7 +39,7 @@ Facultatif : pour signer avec un certificat stable (auto-signé, ou Developer ID
 
 ## Mise à jour automatique
 
-L'application vérifie les nouvelles versions au lancement (au plus une fois par jour) et à la demande par **Enhanced File Manager › Rechercher les mises à jour…**. Tout est natif (cible `UpdateKit`, réutilisable par une autre application du paquet), sans Sparkle :
+L'application vérifie les nouvelles versions au lancement (au plus une fois par jour) et à la demande par **Enhanced File Manager › Rechercher les mises à jour…**. Tout est natif (bibliothèque `UpdateKit` du paquet [iBaobab](https://github.com/blegal/iBaobab)), sans Sparkle :
 
 1. `URLSession` interroge `https://api.github.com/repos/blegal/EnhancedFileManager/releases/latest` et compare le tag à `CFBundleShortVersionString` (`0.2.0-dev.5` précède `0.2.0`).
 2. Une fenêtre affiche les notes de version (corps de la release) : **Installer**, **Plus tard** ou **Ignorer cette version** (la vérification manuelle propose quand même une version ignorée).
@@ -240,21 +240,7 @@ Les couleurs suivent le type de fichier, l’ancienneté ou la branche. Un clic 
 
 ## iBaobab
 
-iBaobab est une application à part, dédiée à l'analyse de l'occupation des disques. Elle partage avec le mode ⌘5 la bibliothèque `DiskUsageKit` (cible SwiftPM : scan, modèle `DiskNode`, les sept graphiques et la page d'analyse), sans dépendance externe.
-
-```bash
-./build-ibaobab.sh         # produit build/iBaobab.app (signée ad hoc ; mêmes variables que build.sh)
-open build/iBaobab.app
-Tools/make-dmg.sh iBaobab  # produit build/iBaobab-<version>.dmg
-```
-
-- **Accueil**, en listes groupées façon iOS dans une fenêtre compacte : les disques (barre d'occupation, espace libre sur le total), les dossiers usuels, les analyses récentes (taille et date, menu contextuel pour les retirer) et une zone où déposer un dossier, avec le bouton « Choisir un dossier… » (⌘O). On peut aussi déposer un dossier sur l'icône du Dock.
-- **Onglets natifs** : chaque analyse s'ouvre dans un onglet. ⌘clic sur un dossier (graphique, liste ou fil d'Ariane) ou « Ouvrir dans un nouvel onglet » du menu contextuel ouvre un sous-dossier à côté, sans nouvelle analyse (l'arbre est partagé). ⌘T ou le bouton « + » ouvre un nouvel accueil, ⇧⌘H revient à l'accueil.
-- **Page d'analyse** : la même que dans Enhanced File Manager. Les sept vues sont accessibles par les icônes ou par ⌘1 … ⌘7 (carte épurée par défaut), avec les couleurs par type, ancienneté ou branche. On navigue en cliquant dans un dossier, avec le fil d'Ariane, précédent / suivant (⌘[ / ⌘]) et le dossier parent (⌘↑ ou ⌫). Le survol affiche la taille, la part du parent, le nombre de fichiers, les types principaux et la date. Les actions sont « Afficher dans le Finder » (⌥⌘R), « Placer dans la corbeille » (menu contextuel) et « Analyser de nouveau » (⌘R).
-
-iBaobab se met à jour comme Enhanced File Manager (UpdateKit, menu **iBaobab › Rechercher les mises à jour…**) : les deux applications sont publiées dans la même release, chacune avec son DMG signé (`iBaobab-<version>.dmg` et `.sig`).
-
-L'identifiant est `local.iBaobab` (`Resources/iBaobab-Info.plist`). L'icône est dessinée par `Tools/make-icons.swift` et s'installe avec `Tools/set-app-icon.sh iBaobab`. Le workflow GitHub produit aussi `iBaobab-<version>.dmg` (binaire universel), en artefact et dans les releases.
+[iBaobab](https://github.com/blegal/iBaobab) est une application à part, dans son propre dépôt (public), dédiée à l'analyse de l'occupation des disques. Son paquet SwiftPM fournit les bibliothèques communes : `DiskUsageKit` (scan, modèle `DiskNode`, les sept graphiques et la page d'analyse du mode ⌘5) et `UpdateKit` (mise à jour automatique, indicateur de la barre d'outils). Enhanced File Manager en dépend par `.package(url: "https://github.com/blegal/iBaobab", branch: "main")` ; `swift package update iBaobab` récupère leurs dernières modifications. Pour modifier ces bibliothèques en même temps qu'Enhanced File Manager : `swift package edit iBaobab --path ../iBaobab`.
 
 ## Actions personnalisées
 

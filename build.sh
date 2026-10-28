@@ -1,6 +1,5 @@
 #!/bin/zsh
 # Compile l'application et produit build/EnhancedFileManager.app
-# (PRODUCT=iBaobab, ou ./build-ibaobab.sh, produit build/iBaobab.app)
 # Variables facultatives :
 #   UNIVERSAL=1        binaire universel (Apple Silicon + Intel)
 #   VERSION=1.2.0      numéro de version écrit dans Info.plist
@@ -9,12 +8,8 @@
 set -euo pipefail
 cd "${0:A:h}"
 CONFIG=${1:-release}
-PRODUCT=${PRODUCT:-EnhancedFileManager}
-if [[ "$PRODUCT" == EnhancedFileManager ]]; then
-    INFO=Resources/Info.plist ICON=Resources/AppIcon.icns
-else
-    INFO=Resources/$PRODUCT-Info.plist ICON=Resources/$PRODUCT.icns
-fi
+PRODUCT=EnhancedFileManager
+INFO=Resources/Info.plist ICON=Resources/AppIcon.icns
 if [[ "${UNIVERSAL:-0}" == 1 ]]; then
     # Une compilation par architecture puis lipo : la compilation multi-architecture
     # en une passe (XCBuild) échoue sur le plugin de SwiftTerm.
