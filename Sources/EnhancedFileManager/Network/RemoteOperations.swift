@@ -36,6 +36,7 @@ extension FileOperationCenter {
         var results: [(from: URL, to: URL)] = []
         var applyToAll: ConflictChoice?
         for (index, source) in sources.enumerated() where !job.isCancelled {
+            job.waitIfPaused()
             let remaining = sources.count - index - 1
             job.setStatus(source.lastPathComponent)
             defer { job.setDone(Int64(index + 1)) }

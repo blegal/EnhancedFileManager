@@ -124,3 +124,9 @@ La zone des onglets est teintée par l’accent du thème. Clic droit sur un ong
 Pastilles de couleur dans les listes, ligne « Tags » dans l’inspecteur. Clic droit › Tags pour ajouter ou
 retirer un tag (annulable). Recherche ⌘F : `tag:Rouge` ou `#Rouge`. Section « Tags » de la barre latérale :
 tous les fichiers portant ce tag (Spotlight, dossier personnel).
+
+## Opérations
+
+Chaque copie / déplacement en cours affiche son débit et le temps restant, avec des boutons pause / reprise
+et annulation. Fichier › Vérifier les copies : chaque copie est relue et comparée à l’original ; lors d’un
+déplacement entre disques, l’original n’est supprimé qu’après vérification.

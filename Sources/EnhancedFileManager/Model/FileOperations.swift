@@ -10,6 +10,8 @@ enum TransferKind {
 final class FileJob {
     let title: String
     private let lock = NSLock()
+    private let pauseCondition = NSCondition()
+    private var paused = false
     private var cancelled = false
     private var done: Int64 = 0
     private var total: Int64 = 0
@@ -27,7 +29,26 @@ final class FileJob {
             cancelled = true
             return cancelAction
         }
+        setPaused(false)
         action?()
+    }
+
+    // MARK: Pause
+
+    var isPaused: Bool { pauseCondition.withLock { paused } }
+
+    func setPaused(_ value: Bool) {
+        pauseCondition.lock()
+        paused = value
+        pauseCondition.broadcast()
+        pauseCondition.unlock()
+    }
+
+    /// Bloque le fil de copie tant que l'opération est en pause.
+    func waitIfPaused() {
+        pauseCondition.lock()
+        while paused { pauseCondition.wait() }
+        pauseCondition.unlock()
     }
 
     /// Action qui interrompt l'opération en cours (ex. : arrêt du processus sftp).
@@ -120,6 +141,7 @@ final class FileOperationCenter {
         var completed: Int64 = 0
 
         for (index, plan) in plans.enumerated() where !job.isCancelled {
+            job.waitIfPaused()
             let source = plan.source
             let remaining = plans.count - index - 1
             job.setStatus(source.lastPathComponent)
@@ -159,10 +181,15 @@ final class FileOperationCenter {
                 if plan.needsCopy {
                     do {
                         try copyItem(at: source, to: target, job: job, alreadyDone: completed)
+                        if Preferences.verifyCopies {
+                            job.setStatus("Vérification de « \(source.lastPathComponent) »")
+                            try Self.verifyCopy(source, target, job: job)
+                        }
                     } catch {
-                        try? fm.removeItem(at: target) // copie partielle
+                        try? fm.removeItem(at: target) // copie partielle ou non conforme
                         throw error
                     }
+                    // L'original n'est supprimé qu'après une copie complète (et vérifiée si demandé).
                     if kind == .move { try fm.removeItem(at: source) }
                 } else {
                     try fm.moveItem(at: source, to: target)
@@ -441,6 +468,9 @@ private let copyProgressCallback: copyfile_callback_t = { what, stage, state, so
         context.currentFileCounted = 0
         if let source { context.job.setStatus((String(cString: source) as NSString).lastPathComponent) }
     case (COPYFILE_COPY_DATA, COPYFILE_PROGRESS):
+        // Pause au milieu d'un fichier : le fil de copie attend ici.
+        context.job.waitIfPaused()
+        if context.job.isCancelled { return COPYFILE_QUIT }
         var copied: off_t = 0
         copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &copied)
         context.add(Int64(copied) - context.currentFileCounted)
@@ -455,4 +485,43 @@ private let copyProgressCallback: copyfile_callback_t = { what, stage, state, so
         break
     }
     return COPYFILE_CONTINUE
+}
+
+// MARK: - Vérification des copies
+
+extension FileOperationCenter {
+    /// Compare le contenu de la copie à l'original, bloc par bloc (dossiers parcourus récursivement).
+    static func verifyCopy(_ source: URL, _ target: URL, job: FileJob) throws {
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: source.path, isDirectory: &isDirectory) else { return }
+        if isDirectory.boolValue {
+            let enumerator = fm.enumerator(at: source, includingPropertiesForKeys: [.isRegularFileKey], options: [], errorHandler: { _, _ in true })
+            let base = source.standardizedFileURL.path
+            while let file = enumerator?.nextObject() as? URL {
+                guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                let relative = String(file.standardizedFileURL.path.dropFirst(base.count + 1))
+                try compareFiles(file, target.appendingPathComponent(relative), job: job)
+            }
+        } else {
+            try compareFiles(source, target, job: job)
+        }
+    }
+
+    private static func compareFiles(_ a: URL, _ b: URL, job: FileJob) throws {
+        let mismatch = NSError(domain: "EnhancedFileManager", code: 2, userInfo: [
+            NSLocalizedDescriptionKey: "La copie de « \(a.lastPathComponent) » ne correspond pas à l’original.",
+        ])
+        guard let left = try? FileHandle(forReadingFrom: a), let right = try? FileHandle(forReadingFrom: b) else { throw mismatch }
+        defer { try? left.close(); try? right.close() }
+        let chunk = 4 * 1024 * 1024
+        while true {
+            if job.isCancelled { throw CocoaError(.userCancelled) }
+            job.waitIfPaused()
+            let x = try left.read(upToCount: chunk) ?? Data()
+            let y = try right.read(upToCount: chunk) ?? Data()
+            if x != y { throw mismatch }
+            if x.isEmpty { return }
+        }
+    }
 }

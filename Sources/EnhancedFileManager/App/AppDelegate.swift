@@ -65,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func clearRecentFolders(_ sender: Any?) { RecentFolders.clear() }
 
+    @objc func toggleVerifyCopies(_ sender: Any?) { Preferences.verifyCopies.toggle() }
+
     @objc func showFinderFavoritesDiagnostic(_ sender: Any?) {
         FinderFavorites.showDiagnostic()
     }
@@ -87,6 +89,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         if menuItem.action == #selector(setIconTheme(_:)) {
             menuItem.state = menuItem.tag == IconTheme.current.rawValue ? .on : .off
+        }
+        if menuItem.action == #selector(toggleVerifyCopies(_:)) {
+            menuItem.state = Preferences.verifyCopies ? .on : .off
         }
         if menuItem.action == #selector(toggleGit(_:)) {
             menuItem.state = GitService.isEnabled ? .on : .off

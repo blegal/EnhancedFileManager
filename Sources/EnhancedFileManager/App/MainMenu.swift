@@ -60,6 +60,7 @@ enum MainMenu {
             item("Copier vers l’autre panneau", #selector(Panel.copyToOtherPanel(_:)), functionKey(NSF5FunctionKey), []),
             item("Déplacer vers l’autre panneau", #selector(Panel.moveToOtherPanel(_:)), functionKey(NSF6FunctionKey), []),
             item("Placer dans la corbeille", #selector(Panel.moveToTrash(_:)), "\u{8}"),
+            item("Vérifier les copies", #selector(AppDelegate.toggleVerifyCopies(_:))),
             separator(),
             item("Compresser", #selector(Panel.compressSelection(_:)), "k", [.command, .option]),
             item("Décompresser ici", #selector(Panel.extractHere(_:)), "e", [.command, .option]),

@@ -715,6 +715,10 @@ private final class JobRowView: NSView {
     private let title = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
+    private let pauseButton = NSButton()
+    /// Débit lissé (unités par seconde) et dernier échantillon.
+    private var rate: Double = 0
+    private var lastSample: (time: Date, done: Int64)?
 
     init(job: FileJob) {
         self.job = job
@@ -736,8 +740,13 @@ private final class JobRowView: NSView {
         cancel.isBordered = false
         cancel.contentTintColor = .secondaryLabelColor
         cancel.toolTip = "Annuler"
+        pauseButton.isBordered = false
+        pauseButton.contentTintColor = .secondaryLabelColor
+        pauseButton.target = self
+        pauseButton.action = #selector(togglePause)
+        updatePauseButton()
 
-        for view in [title, detail, progress, cancel] as [NSView] {
+        for view in [title, detail, progress, pauseButton, cancel] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -747,7 +756,9 @@ private final class JobRowView: NSView {
             title.trailingAnchor.constraint(lessThanOrEqualTo: cancel.leadingAnchor, constant: -8),
             progress.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
             progress.leadingAnchor.constraint(equalTo: leadingAnchor),
-            progress.trailingAnchor.constraint(equalTo: cancel.leadingAnchor, constant: -8),
+            progress.trailingAnchor.constraint(equalTo: pauseButton.leadingAnchor, constant: -8),
+            pauseButton.trailingAnchor.constraint(equalTo: cancel.leadingAnchor, constant: -6),
+            pauseButton.centerYAnchor.constraint(equalTo: progress.centerYAnchor),
             detail.topAnchor.constraint(equalTo: progress.bottomAnchor, constant: 2),
             detail.leadingAnchor.constraint(equalTo: leadingAnchor),
             detail.trailingAnchor.constraint(lessThanOrEqualTo: cancel.leadingAnchor, constant: -8),
@@ -767,12 +778,52 @@ private final class JobRowView: NSView {
             let amount = job.countsItems
                 ? "\(snapshot.done) sur \(Format.items(Int(snapshot.total)))"
                 : "\(Format.size(snapshot.done)) sur \(Format.size(snapshot.total))"
-            detail.stringValue = "\(amount) — \(snapshot.status)"
+            detail.stringValue = [amount, timing(done: snapshot.done, total: snapshot.total), snapshot.status]
+                .compactMap { $0 }.joined(separator: " — ")
         } else {
             if !progress.isIndeterminate { progress.isIndeterminate = true }
             progress.startAnimation(nil)
             detail.stringValue = snapshot.status
         }
+    }
+
+    /// Débit et temps restant (moyenne glissante, mise à jour à chaque rafraîchissement).
+    private func timing(done: Int64, total: Int64) -> String? {
+        if job.isPaused { lastSample = nil; return "en pause" }
+        let now = Date()
+        if let last = lastSample, now.timeIntervalSince(last.time) > 0.1 {
+            let instant = Double(done - last.done) / now.timeIntervalSince(last.time)
+            rate = rate == 0 ? instant : rate * 0.8 + instant * 0.2
+        }
+        lastSample = (now, done)
+        guard rate > 0, total > done else { return nil }
+        let speed = job.countsItems ? String(format: "%.1f éléments/s", rate) : "\(Format.size(Int64(rate)))/s"
+        return "\(speed), \(Self.duration(Double(total - done) / rate)) restantes"
+    }
+
+    private static let durationFormatter: DateComponentsFormatter = {
+        let f = DateComponentsFormatter()
+        f.unitsStyle = .abbreviated
+        f.allowedUnits = [.hour, .minute, .second]
+        f.maximumUnitCount = 2
+        return f
+    }()
+
+    private static func duration(_ seconds: Double) -> String {
+        durationFormatter.string(from: max(1, seconds)) ?? ""
+    }
+
+    @objc private func togglePause() {
+        job.setPaused(!job.isPaused)
+        updatePauseButton()
+        update()
+    }
+
+    private func updatePauseButton() {
+        let paused = job.isPaused
+        pauseButton.image = NSImage(systemSymbolName: paused ? "play.circle.fill" : "pause.circle.fill",
+                                    accessibilityDescription: paused ? "Reprendre" : "Mettre en pause")
+        pauseButton.toolTip = paused ? "Reprendre" : "Mettre en pause"
     }
 
     @objc private func cancelJob() { job.cancel() }

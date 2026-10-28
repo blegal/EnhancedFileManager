@@ -455,6 +455,7 @@ extension FileOperationCenter {
             }
             var failures: [String] = []
             for (index, row) in actions.enumerated() where !job.isCancelled {
+                job.waitIfPaused()
                 job.setStatus(row.path)
                 let leftURL = left.appendingPathComponent(row.path), rightURL = right.appendingPathComponent(row.path)
                 do {

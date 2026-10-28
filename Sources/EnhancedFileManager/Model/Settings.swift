@@ -6,6 +6,12 @@ enum Preferences {
 
     private static let defaults = UserDefaults.standard
 
+    /// Relire et comparer chaque copie à l'original.
+    static var verifyCopies: Bool {
+        get { defaults.bool(forKey: "verifyCopies") }
+        set { defaults.set(newValue, forKey: "verifyCopies") }
+    }
+
     static var showHiddenFiles: Bool {
         get { defaults.bool(forKey: "showHiddenFiles") }
         set {
