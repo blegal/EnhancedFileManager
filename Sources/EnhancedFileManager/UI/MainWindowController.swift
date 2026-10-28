@@ -7,6 +7,7 @@ private extension NSToolbarItem.Identifier {
     static let iconTheme = NSToolbarItem.Identifier("iconTheme")
     static let colorTheme = NSToolbarItem.Identifier("colorTheme")
     static let viewMode = NSToolbarItem.Identifier("viewMode")
+    static let diskUsage = NSToolbarItem.Identifier("diskUsage")
     static let inspector = NSToolbarItem.Identifier("inspector")
     static let git = NSToolbarItem.Identifier("git")
     static let terminal = NSToolbarItem.Identifier("terminal")
@@ -258,6 +259,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private weak var layoutItem: NSMenuToolbarItem?
     private weak var viewModeControl: NSSegmentedControl?
     private weak var gitButton: NSButton?
+    private weak var diskUsageButton: NSButton?
     private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self?.activePanel }
     private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self?.activePanel }
     private weak var terminalButton: NSButton?
@@ -318,7 +320,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             window.center()
         }
 
-        let toolbar = NSToolbar(identifier: "MainToolbar.v4")
+        let toolbar = NSToolbar(identifier: "MainToolbar.v5")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
@@ -409,7 +411,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         window?.representedURL = nil
         sidebar.highlight(panel.currentURL)
         layoutItem?.image = panelsController.layout.icon()
-        viewModeControl?.selectedSegment = panel.isShowingDiskUsage ? 4 : panel.viewMode.rawValue
+        // En mode occupation du disque, aucun mode de liste n'est sélectionné ; le bouton dédié est allumé.
+        viewModeControl?.selectedSegment = panel.isShowingDiskUsage ? -1 : panel.viewMode.rawValue
+        diskUsageButton?.state = panel.isShowingDiskUsage ? .on : .off
         updateInspector(panel)
         terminalController.activePanelDidChange(to: panel.currentURL)
     }
@@ -441,13 +445,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     }
 
     @objc func setViewModeFromToolbar(_ sender: NSSegmentedControl) {
-        // Dernier segment : occupation du disque.
-        guard let mode = PanelViewMode(rawValue: sender.selectedSegment) else {
-            activePanel.setDiskUsageVisible(true)
-            sender.selectedSegment = activePanel.isShowingDiskUsage ? 4 : activePanel.viewMode.rawValue
-            return
-        }
+        guard let mode = PanelViewMode(rawValue: sender.selectedSegment) else { return }
         activePanel.setViewMode(mode)
+    }
+
+    /// Bouton à bascule de la barre d'outils : un second clic revient aux fichiers.
+    @objc func toggleDiskUsageFromToolbar(_ sender: NSButton) {
+        activePanel.toggleDiskUsage(sender)
+        sender.state = activePanel.isShowingDiskUsage ? .on : .off
     }
 
     func windowWillClose(_ notification: Notification) { onClose?(self) }
@@ -554,7 +559,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .sidebarTrackingSeparator, .back, .forward, .flexibleSpace,
-         .viewMode, .layout, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector]
+         .viewMode, .diskUsage, .layout, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -610,13 +615,25 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.view = toggle
             item.label = isGit ? "Git" : "Terminal"
             return item
+        case .diskUsage:
+            let toggle = NSButton(image: NSImage(systemSymbolName: "chart.pie", accessibilityDescription: "Occupation du disque")!,
+                                  target: self, action: #selector(toggleDiskUsageFromToolbar(_:)))
+            toggle.setButtonType(.pushOnPushOff)
+            toggle.bezelStyle = .toolbar
+            toggle.state = activePanel.isShowingDiskUsage ? .on : .off
+            toggle.toolTip = "Occupation du disque (⌘5) — cliquer de nouveau pour revenir aux fichiers"
+            diskUsageButton = toggle
+            let item = NSToolbarItem(itemIdentifier: identifier)
+            item.view = toggle
+            item.label = "Occupation"
+            return item
         case .viewMode:
-            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle", "rectangle.split.3x1", "chart.pie"]
-            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)", "Colonnes (⌘4)", "Occupation du disque (⌘5)"]
+            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle", "rectangle.split.3x1"]
+            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)", "Colonnes (⌘4)"]
             let control = NSSegmentedControl(images: symbols.map { NSImage(systemSymbolName: $0, accessibilityDescription: nil)! },
                                              trackingMode: .selectOne, target: self, action: #selector(setViewModeFromToolbar(_:)))
             for (index, label) in labels.enumerated() { control.setToolTip(label, forSegment: index) }
-            control.selectedSegment = activePanel.isShowingDiskUsage ? 4 : activePanel.viewMode.rawValue
+            control.selectedSegment = activePanel.isShowingDiskUsage ? -1 : activePanel.viewMode.rawValue
             viewModeControl = control
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = control

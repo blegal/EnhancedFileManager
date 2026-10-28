@@ -185,7 +185,7 @@ intégré pour les autres documents.
 
 ## Occupation du disque
 
-⌘5, le 5ᵉ bouton de présentation de la barre d’outils ou « Analyser l’espace disque » dans le menu contextuel d’un dossier : le panneau remplace la liste des fichiers par la répartition de l’espace du dossier courant, analysée en arrière-plan (taille réellement occupée sur le disque, sans suivre les liens symboliques ni traverser les autres volumes). La vue par défaut est la **carte épurée** ; sept icônes permettent de basculer entre :
+⌘5, le bouton à bascule « Occupation » de la barre d’outils (allumé tant que le mode est actif, un second clic revient aux fichiers) ou « Analyser l’espace disque » dans le menu contextuel d’un dossier : le panneau remplace la liste des fichiers par la répartition de l’espace du dossier courant, analysée en arrière-plan (taille réellement occupée sur le disque, sans suivre les liens symboliques ni traverser les autres volumes). La vue par défaut est la **carte épurée** ; sept icônes permettent de basculer entre :
 
 1. carte coussin (relief façon GdMap) ;
 2. carte épurée (par défaut) ;
