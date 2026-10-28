@@ -366,6 +366,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             if let connection { self?.open(connection) } else { self?.showConnectionPanel(nil) }
         }
         sidebar.onEditConnection = { [weak self] connection in self?.showConnectionPanel(connection) }
+        sidebar.onAnalyzeDisk = { [weak self] url in
+            guard let panel = self?.activePanel else { return }
+            panel.navigate(to: url)
+            panel.setDiskUsageVisible(true)
+            panel.activate()
+        }
         sidebar.onShowTag = { [weak self] tag in
             guard let panel = self?.activePanel else { return }
             panel.showFiles(taggedWith: tag)

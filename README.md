@@ -78,6 +78,8 @@ Le script affiche la clé privée, à enregistrer dans le secret `UPDATE_SIGNING
 | Onglet suivant / précédent | ⌃⇥ / ⌃⇧⇥ |
 | Fichiers cachés | ⇧⌘. |
 | Icônes / Liste / Liste détaillée / Colonnes | ⌘1 / ⌘2 / ⌘3 / ⌘4 |
+| Navigation synchronisée des panneaux | ⌃⌘Y |
+| Ajouter aux favoris | ⌃⌘T |
 | Occupation du disque (activer / quitter) | ⌘5 (Échap pour quitter) |
 | Zoom (icônes ou liste) | ⌘ + molette, pincement, ⌘+ / ⌘− |
 | Taille par défaut | ⌘0 |
@@ -109,8 +111,20 @@ Le presse-papiers est partagé avec le Finder.
 
 ## Barre latérale
 
-La section « Favoris » reprend les favoris du Finder. Si macOS en refuse la lecture,
-une liste par défaut est utilisée (l’accès complet au disque, dans Réglages Système, lève ce blocage).
+La section « Favoris » est modifiable, comme dans le Finder. Elle part des favoris du Finder (ou, si macOS en
+refuse la lecture, des dossiers standard), puis :
+
+- ajouter un dossier : ⌃⌘T, clic droit › Ajouter aux favoris, ou glisser un dossier entre deux favoris ;
+- réordonner : glisser un favori à sa nouvelle place ;
+- retirer : clic droit › Retirer de la barre latérale ;
+- clic droit sur l’en-tête « Favoris » › Rétablir les favoris par défaut.
+
+Déposer des fichiers *sur* un favori les copie ou les déplace dans ce dossier.
+
+Section « Appareils » : chaque volume local affiche une jauge d’occupation (bleue, orange au-delà de 80 %,
+rouge au-delà de 92 %) et l’espace libre ; bouton d’éjection pour les volumes amovibles et les images disque ;
+clic droit › Analyser l’espace disque ou Éjecter. « Monter une image disque… » (ou clic droit sur un .dmg, .iso…
+dans un panneau › Monter l’image disque) monte l’image avec `hdiutil` et ouvre le volume.
 
 ## Thèmes d’icônes
 
@@ -164,6 +178,30 @@ macOS peut exiger l’« Accès complet au disque » pour lire leur liste.
 
 La zone des onglets est teintée par l’accent du thème. Clic droit sur un onglet : couleur de l’onglet
 (rouge, orange, jaune, vert, bleu, violet, gris), mémorisée avec la session.
+
+## Menu contextuel
+
+Les actions courantes (couper, copier, coller, dupliquer, renommer, coup d’œil, corbeille) et les sept couleurs
+de tags sont des rangées d’icônes en tête du menu contextuel ; le nom de chaque action apparaît en bulle d’aide.
+
+## Vue en colonnes
+
+Comme dans le Finder (⌘4), avec glisser-déposer (vers un dossier ou dans le dossier d’une colonne), couleurs
+et lettres d’état Git et pastilles de tags.
+
+## Navigation synchronisée
+
+Bouton « Synchro » de la barre d’outils ou ⌃⌘Y (Aller › Navigation synchronisée) : quand le panneau actif
+descend dans un sous-dossier ou remonte, les autres panneaux visibles font le même déplacement relatif depuis
+leur propre dossier, en local comme en SFTP. Pratique pour parcourir deux arborescences jumelles. Si le dossier
+n’existe pas de l’autre côté, ce panneau reste en place (bip).
+
+## Permissions
+
+Dans l’inspecteur : cases R / W / X, mode octal modifiable (Retour pour appliquer), propriétaire et groupe en
+menus, verrouillage, et « Appliquer aux éléments inclus… » pour un dossier. Si macOS refuse (fichiers d’un autre
+compte), l’app propose de réessayer avec les droits d’administrateur. En SFTP, les permissions sont lues et
+modifiées sur le serveur (`chmod`, `chown`, `chgrp` ; propriétaire et groupe en identifiants numériques).
 
 ## Tags du Finder
 

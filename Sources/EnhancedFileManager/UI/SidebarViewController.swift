@@ -1,7 +1,7 @@
 import AppKit
 
 final class SidebarItem {
-    enum Kind { case section, location, volume, connect, server, finderAccess, tag }
+    enum Kind { case section, location, volume, connect, server, finderAccess, tag, mountImage }
 
     let kind: Kind
     let title: String
@@ -10,6 +10,8 @@ final class SidebarItem {
     let url: URL?
     var detail: String?
     var isEjectable = false
+    /// Volumes locaux : capacité totale et espace disponible (jauge).
+    var capacity: (total: Int64, available: Int64)?
     var isCustomFavorite = false
     var connection: ServerConnection?
     var sftpEndpoint: SFTPEndpoint?
@@ -32,6 +34,8 @@ final class SidebarViewController: NSViewController {
     var onEditConnection: ((ServerConnection) -> Void)?
     /// Clic sur un tag : afficher tous les fichiers qui le portent.
     var onShowTag: ((String) -> Void)?
+    /// Ouvrir un volume en vue « Occupation du disque ».
+    var onAnalyzeDisk: ((URL) -> Void)?
 
     private let outlineView = NSOutlineView()
     private var sections: [SidebarItem] = []
@@ -166,9 +170,11 @@ final class SidebarViewController: NSViewController {
             let item = SidebarItem(kind: .volume, title: values?.volumeLocalizedName ?? url.lastPathComponent,
                                    symbol: symbol, tint: isLocal ? .systemGray : .systemTeal, url: url)
             item.detail = Format.availableCapacity(at: url).map(Format.size)
+            if isLocal { item.capacity = Volumes.capacity(of: url) }
             item.isEjectable = !isLocal || values?.volumeIsEjectable == true || values?.volumeIsRemovable == true
             (isLocal ? devices : network).children.append(item)
         }
+        devices.children.append(SidebarItem(kind: .mountImage, title: "Monter une image disque…", symbol: "opticaldiscdrive", tint: .secondaryLabelColor))
         // Connexions enregistrées, puis sessions SFTP ouvertes sans favori.
         let sessions = SFTPManager.shared.connectedSessions
         let connections = SavedConnections.all
@@ -220,6 +226,7 @@ final class SidebarViewController: NSViewController {
         case .connect: onConnect?(nil)
         case .finderAccess: FinderFavorites.showDiagnostic()
         case .tag: onShowTag?(item.title)
+        case .mountImage: Volumes.chooseAndMount { [weak self] mountPoint in if let mountPoint { self?.onNavigate?(mountPoint) } }
         case .server: onConnect?(item.connection)
         case .section: break
         }
@@ -233,18 +240,26 @@ final class SidebarViewController: NSViewController {
             return
         }
         guard let url = item.url else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                try NSWorkspace.shared.unmountAndEjectDevice(at: url)
-            } catch {
-                DispatchQueue.main.async { NSAlert(error: error).runModal() }
-            }
-        }
+        Volumes.eject(url)
+    }
+
+    @objc private func ejectVolume(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        Volumes.eject(url)
+    }
+
+    @objc private func analyzeVolume(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        onAnalyzeDisk?(url)
     }
 
     @objc private func removeFavorite(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         Preferences.removeFavorite(url)
+    }
+
+    @objc private func mountImage(_ sender: NSMenuItem) {
+        Volumes.chooseAndMount { [weak self] mountPoint in if let mountPoint { self?.onNavigate?(mountPoint) } }
     }
 
     @objc private func resetFavorites(_ sender: NSMenuItem) {
@@ -299,6 +314,11 @@ extension SidebarViewController: NSOutlineViewDataSource, NSOutlineViewDelegate 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
         let kind = (item as? SidebarItem)?.kind
         return kind == .location || kind == .volume
+    }
+
+    /// Les volumes avec jauge sont un peu plus hauts.
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        (item as? SidebarItem)?.capacity != nil ? 36 : outlineView.rowHeight
     }
 
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
@@ -391,6 +411,26 @@ extension SidebarViewController: NSMenuDelegate {
             reset.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
             menu.addItem(reset)
         }
+        if item.kind == .volume, item.sftpEndpoint == nil, let url = item.url {
+            let analyze = NSMenuItem(title: "Analyser l’espace disque", action: #selector(analyzeVolume(_:)), keyEquivalent: "")
+            analyze.target = self
+            analyze.representedObject = url
+            analyze.image = NSImage(systemSymbolName: "chart.pie", accessibilityDescription: nil)
+            menu.addItem(analyze)
+            if item.isEjectable {
+                let eject = NSMenuItem(title: "Éjecter « \(item.title) »", action: #selector(ejectVolume(_:)), keyEquivalent: "")
+                eject.target = self
+                eject.representedObject = url
+                eject.image = NSImage(systemSymbolName: "eject", accessibilityDescription: nil)
+                menu.addItem(eject)
+            }
+        }
+        if item.kind == .section, item.title == "Appareils" {
+            let mount = NSMenuItem(title: "Monter une image disque…", action: #selector(mountImage(_:)), keyEquivalent: "")
+            mount.target = self
+            mount.image = NSImage(systemSymbolName: "opticaldiscdrive", accessibilityDescription: nil)
+            menu.addItem(mount)
+        }
         if item.isCustomFavorite, let url = item.url {
             let remove = NSMenuItem(title: "Retirer de la barre latérale", action: #selector(removeFavorite(_:)), keyEquivalent: "")
             remove.target = self
@@ -458,19 +498,56 @@ private final class SidebarCell: NSTableCellView {
         }
         imageView = icon
         textField = field
+        // Volume : jauge d'occupation sous le nom.
+        let offset: CGFloat = item.capacity == nil ? 0 : -5
         NSLayoutConstraint.activate([
             icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
             icon.widthAnchor.constraint(equalToConstant: 18),
             field.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor, constant: offset),
             trailing.leadingAnchor.constraint(equalTo: field.trailingAnchor, constant: 4),
             trailing.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            trailing.centerYAnchor.constraint(equalTo: centerYAnchor),
+            trailing.centerYAnchor.constraint(equalTo: centerYAnchor, constant: offset),
         ])
+        if let capacity = item.capacity {
+            let gauge = CapacityGauge(used: Double(capacity.total - capacity.available) / Double(capacity.total))
+            gauge.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(gauge)
+            NSLayoutConstraint.activate([
+                gauge.leadingAnchor.constraint(equalTo: field.leadingAnchor),
+                gauge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+                gauge.topAnchor.constraint(equalTo: field.bottomAnchor, constant: 3),
+                gauge.heightAnchor.constraint(equalToConstant: 4),
+            ])
+            let used = Double(capacity.total - capacity.available) / Double(capacity.total)
+            toolTip = "\(Format.size(capacity.available)) disponibles sur \(Format.size(capacity.total)) (\(Int((used * 100).rounded())) % utilisés)"
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// Jauge fine d'occupation d'un volume : bleue, orange au-delà de 80 %, rouge au-delà de 92 %.
+private final class CapacityGauge: NSView {
+    private let used: Double
+
+    init(used: Double) {
+        self.used = min(max(used, 0), 1)
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let track = NSBezierPath(roundedRect: bounds, xRadius: bounds.height / 2, yRadius: bounds.height / 2)
+        NSColor.labelColor.withAlphaComponent(0.12).setFill()
+        track.fill()
+        let color: NSColor = used > 0.92 ? .systemRed : used > 0.8 ? .systemOrange : Theme.accent
+        color.setFill()
+        let fill = NSRect(x: 0, y: 0, width: max(bounds.height, bounds.width * used), height: bounds.height)
+        NSBezierPath(roundedRect: fill, xRadius: bounds.height / 2, yRadius: bounds.height / 2).fill()
+    }
 }
 
 private final class ConnectionBox: NSObject {

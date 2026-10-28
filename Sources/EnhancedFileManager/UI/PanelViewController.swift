@@ -1360,6 +1360,9 @@ final class PanelViewController: NSViewController {
                     formats.submenu?.addItem(entry)
                 }
                 menu.addItem(formats)
+                if selection.allSatisfy({ Volumes.isDiskImage($0.url) }) {
+                    add("Monter l’image disque", #selector(mountDiskImages(_:)), "opticaldiscdrive")
+                }
                 if selection.contains(where: { FileOperationCenter.isArchive($0.url) }) {
                     add("Décompresser ici", #selector(extractHere(_:)), "archivebox.circle")
                     if !(host?.targetPanels(for: self).isEmpty ?? true) {
