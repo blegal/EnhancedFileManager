@@ -26,7 +26,7 @@ Clé publique :
    (après avoir copié la clé privée). Gardez-en aussi une copie dans votre trousseau.
 
 2. Placez la clé publique dans Resources/Info.plist :
-     /usr/libexec/PlistBuddy -c "Set :UpdatePublicKey \(publicKey)" Resources/Info.plist
+     sed -i '' 's|<key>UpdatePublicKey</key><string>[^<]*</string>|<key>UpdatePublicKey</key><string>\(publicKey)</string>|' Resources/Info.plist
    puis commitez Info.plist.
 
 Le workflow de release signe alors chaque image disque et publie la signature (.dmg.sig).

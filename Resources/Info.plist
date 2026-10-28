@@ -15,7 +15,7 @@
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>UpdateRepository</key><string>blegal/EnhancedFileManager</string>
-    <key>UpdatePublicKey</key><string></string>
+    <key>UpdatePublicKey</key><string>eYUjSvWIN4/67jfnPhmK1xvHFGWEqsdl76wy1Sg9/hg=</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSDesktopFolderUsageDescription</key><string>Afficher et gérer les fichiers du Bureau.</string>
