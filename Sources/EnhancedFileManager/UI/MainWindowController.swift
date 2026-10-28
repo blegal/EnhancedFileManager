@@ -382,6 +382,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     // MARK: Terminal
 
+    /// Affiche le terminal si besoin et y lance une commande.
+    func runInTerminal(_ command: String, in folder: URL) {
+        if terminalItem.isCollapsed { toggleTerminal(nil) }
+        terminalController.run(command, in: folder)
+    }
+
     @objc func toggleTerminal(_ sender: Any?) {
         let show = terminalItem.isCollapsed
         terminalController.panelDirectory = activePanel.currentURL.isFileURL ? activePanel.currentURL : nil

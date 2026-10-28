@@ -1,6 +1,16 @@
 import AppKit
 
 enum MainMenu {
+    /// Menu « Actions » : actions personnalisées (avec leurs raccourcis) et gestion.
+    static func fillActionsMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        for action in CustomAction.all { menu.addItem(action.menuItem()) }
+        if menu.numberOfItems > 0 { menu.addItem(.separator()) }
+        let manage = NSMenuItem(title: "Gérer les actions…", action: #selector(AppDelegate.manageCustomActions(_:)), keyEquivalent: "")
+        manage.image = NSImage(systemSymbolName: "slider.horizontal.3", accessibilityDescription: nil)
+        menu.addItem(manage)
+    }
+
     /// Fournit le sous-menu « Dossiers récents » (gardé en vie pour toute la durée de l'app).
     private static let recentProvider = HistoryMenuProvider(kind: .recent) { nil }
 
@@ -159,6 +169,9 @@ enum MainMenu {
             item("Aller au dossier…", #selector(Panel.goToFolder(_:)), "g", [.command, .shift]),
             recentItem,
         ])
+
+        let actions = submenu("Actions", [])
+        fillActionsMenu(actions)
 
         let window = submenu("Fenêtre", [
             item("Placer dans le Dock", #selector(NSWindow.performMiniaturize(_:)), "m"),

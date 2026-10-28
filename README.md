@@ -140,3 +140,10 @@ déplacement entre disques, l’original n’est supprimé qu’après vérifica
 Code et texte avec coloration syntaxique (Swift, C/C++, Python, JavaScript/TypeScript, Java/Kotlin, Go, Rust,
 shell, JSON, LaTeX, Markdown), PDF feuilletable (PDFKit), vidéo et audio (AVKit), images, et Coup d’œil
 intégré pour les autres documents.
+
+## Actions personnalisées
+
+Menu Actions › Gérer les actions… : commandes shell avec variables (`%chemin`, `%autre`, `%sélection`,
+`%fichier`, `%nom`, `%base`, `%ext`, protégées pour le shell), exécutées dans le terminal intégré ou en
+arrière-plan, avec raccourci clavier et confirmation optionnels. Disponibles dans le menu Actions et le
+clic droit. Exemples fournis : compiler un .tex (latexmk), ouvrir dans VS Code, rsync vers un serveur.

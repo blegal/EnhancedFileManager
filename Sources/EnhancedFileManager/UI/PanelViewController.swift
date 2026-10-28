@@ -1273,6 +1273,7 @@ final class PanelViewController: NSViewController {
             if !currentURL.isRemote {
                 menu.addItem(.separator())
                 menu.addItem(tagsMenuItem())
+                if let actions = customActionsMenuItem() { menu.addItem(actions) }
                 let name = selection.count == 1 ? "« \(selection[0].name) »" : "\(selection.count) éléments"
                 add("Compresser \(name)", #selector(compressSelection(_:)), "archivebox")
                 let formats = NSMenuItem(title: "Compresser au format", action: nil, keyEquivalent: "")
@@ -1360,6 +1361,7 @@ extension PanelViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let hasSelection = !selectionIndexes.isEmpty
         let localOnly: [Selector?] = [#selector(revealInFinder(_:)), #selector(openInTerminal(_:)), #selector(addToFavorites(_:)),
+                                      #selector(runCustomAction(_:)),
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
                                       #selector(quickLook(_:)), #selector(showPackageContents(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }

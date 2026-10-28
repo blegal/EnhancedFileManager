@@ -5,6 +5,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build()
+        NotificationCenter.default.addObserver(forName: CustomAction.changed, object: nil, queue: .main) { [weak self] _ in
+            self?.rebuildActionsMenu()
+        }
         // Une seule fenêtre principale : on restaure la dernière session.
         openWindow(state: SessionStore.load().first)
         // Sauvegarde aussi quand l'app passe en arrière-plan (au cas où elle serait arrêtée brutalement).
@@ -64,6 +67,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc func clearRecentFolders(_ sender: Any?) { RecentFolders.clear() }
+
+    @objc func manageCustomActions(_ sender: Any?) {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? windowControllers.first?.window else { return }
+        window.beginSheet(NSWindow(contentViewController: CustomActionsController()))
+    }
+
+    /// Reconstruit le menu « Actions » (raccourcis compris) après une modification.
+    private func rebuildActionsMenu() {
+        guard let menu = NSApp.mainMenu?.items.first(where: { $0.title == "Actions" })?.submenu else { return }
+        MainMenu.fillActionsMenu(menu)
+    }
 
     @objc func toggleVerifyCopies(_ sender: Any?) { Preferences.verifyCopies.toggle() }
 

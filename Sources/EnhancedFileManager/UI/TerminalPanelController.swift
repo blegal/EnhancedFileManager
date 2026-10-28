@@ -127,6 +127,17 @@ final class TerminalPanelController: NSViewController, LocalProcessTerminalViewD
         terminal.send(txt: "\u{15} cd \(quoted)\r")
     }
 
+    /// Exécute une commande dans le shell, après s'être placé dans `folder`.
+    func run(_ command: String, in folder: URL) {
+        startIfNeeded()
+        let quoted = "'" + folder.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        // Laisse au shell le temps de démarrer s'il vient d'être lancé.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.terminal.send(txt: "\u{15}cd \(quoted) && \(command)\r")
+            self?.focus()
+        }
+    }
+
     @objc private func toggleFollow(_ sender: NSButton) {
         Self.followsPanel = sender.state == .on
         if Self.followsPanel, let panelDirectory { changeDirectory(to: panelDirectory) }
