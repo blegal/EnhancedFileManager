@@ -20,13 +20,40 @@ enum Preferences {
         }
     }
 
-    /// Dossiers ajoutés par l'utilisateur dans la section Favoris.
+    /// Dossiers ajoutés avant que la section Favoris devienne entièrement modifiable (repris une fois).
     static var customFavorites: [URL] {
-        get { (defaults.stringArray(forKey: "customFavorites") ?? []).map { URL(fileURLWithPath: $0, isDirectory: true) } }
+        (defaults.stringArray(forKey: "customFavorites") ?? []).map { URL(fileURLWithPath: $0, isDirectory: true) }
+    }
+
+    /// Section Favoris de la barre latérale, dans l'ordre ; nil tant qu'elle n'a pas été initialisée.
+    static var sidebarFavorites: [URL]? {
+        get { defaults.stringArray(forKey: "sidebarFavorites")?.map { URL(fileURLWithPath: $0, isDirectory: true) } }
         set {
-            defaults.set(newValue.map(\.path), forKey: "customFavorites")
+            defaults.set(newValue?.map(\.path), forKey: "sidebarFavorites")
             NotificationCenter.default.post(name: favoritesChanged, object: nil)
         }
+    }
+
+    /// Ajoute des dossiers aux favoris (à la fin, ou à une position), sans doublon.
+    static func addFavorites(_ urls: [URL], at index: Int? = nil) {
+        var favorites = sidebarFavorites ?? []
+        let additions = urls.filter { url in !favorites.contains { $0.isSameLocation(as: url) } }
+        guard !additions.isEmpty else { return }
+        favorites.insert(contentsOf: additions, at: min(index ?? favorites.count, favorites.count))
+        sidebarFavorites = favorites
+    }
+
+    static func removeFavorite(_ url: URL) {
+        sidebarFavorites = (sidebarFavorites ?? []).filter { !$0.isSameLocation(as: url) }
+    }
+
+    /// Déplace un favori (réorganisation par glisser-déposer).
+    static func moveFavorite(_ url: URL, to index: Int) {
+        var favorites = sidebarFavorites ?? []
+        guard let from = favorites.firstIndex(where: { $0.isSameLocation(as: url) }) else { return }
+        let moved = favorites.remove(at: from)
+        favorites.insert(moved, at: min(from < index ? index - 1 : index, favorites.count))
+        sidebarFavorites = favorites
     }
 
     static var recentServers: [String] {

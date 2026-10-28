@@ -988,9 +988,7 @@ final class PanelViewController: NSViewController {
     @objc func addToFavorites(_ sender: Any?) {
         let folders = selectedItems.filter(\.isNavigableDirectory).map(\.url)
         let additions = folders.isEmpty ? [currentURL] : folders
-        var favorites = Preferences.customFavorites
-        for url in additions where !favorites.contains(where: { $0.isSameLocation(as: url) }) { favorites.append(url) }
-        Preferences.customFavorites = favorites
+        Preferences.addFavorites(additions)
     }
 
     // MARK: Presse-papiers

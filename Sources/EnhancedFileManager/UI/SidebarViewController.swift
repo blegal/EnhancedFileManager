@@ -35,6 +35,8 @@ final class SidebarViewController: NSViewController {
 
     private let outlineView = NSOutlineView()
     private var sections: [SidebarItem] = []
+    private weak var favoritesSection: SidebarItem?
+    private var isRebuilding = false
 
     override func loadView() {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("main"))
@@ -52,6 +54,8 @@ final class SidebarViewController: NSViewController {
         outlineView.target = self
         outlineView.action = #selector(rowClicked(_:))
         outlineView.registerForDraggedTypes([.fileURL])
+        outlineView.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
+        outlineView.setDraggingSourceOperationMask([.move, .copy, .link, .generic], forLocal: true)
         outlineView.menu = NSMenu()
         outlineView.menu?.delegate = self
 
@@ -87,13 +91,12 @@ final class SidebarViewController: NSViewController {
         rebuild()
     }
 
-    func rebuild() {
+    /// Titres, symboles et teintes des dossiers standard.
+    private static func favoriteStyles() -> [String: (title: String, symbol: String, tint: NSColor)] {
         let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
         func dir(_ d: FileManager.SearchPathDirectory) -> URL? { fm.urls(for: d, in: .userDomainMask).first }
-
-        let favorites = SidebarItem(kind: .section, title: "Favoris")
-        let defaults: [(String, String, NSColor, URL?)] = [
+        let home = fm.homeDirectoryForCurrentUser
+        let entries: [(String, String, NSColor, URL?)] = [
             (home.lastPathComponent, "house", .systemOrange, home),
             ("Bureau", "menubar.dock.rectangle", .systemBlue, dir(.desktopDirectory)),
             ("Documents", "doc.text", .systemBlue, dir(.documentDirectory)),
@@ -103,33 +106,54 @@ final class SidebarViewController: NSViewController {
             ("Musique", "music.note", .systemRed, dir(.musicDirectory)),
             ("Vidéos", "film", .systemIndigo, dir(.moviesDirectory)),
         ]
-        // Les favoris du Finder s'ils sont lisibles, sinon la liste par défaut.
-        let known = defaults.compactMap { entry in entry.3.map { ($0.standardizedFileURL.path, entry) } }
-        let style = Dictionary(known, uniquingKeysWith: { first, _ in first })
-        if let finder = FinderFavorites.load(), !finder.isEmpty {
-            favorites.children = finder.map { entry in
-                let match = style[entry.url.standardizedFileURL.path]
-                let isICloud = entry.url.path.contains("Mobile Documents/com~apple~CloudDocs")
-                return SidebarItem(kind: .location, title: match?.0 ?? entry.name,
-                                   symbol: match?.1 ?? (isICloud ? "icloud" : "folder"),
-                                   tint: match?.2 ?? (isICloud ? .systemCyan : .systemTeal), url: entry.url)
-            }
-        } else {
-            favorites.children = defaults.compactMap { title, symbol, tint, url in
-                guard let url, url.isExistingDirectory else { return nil }
-                return SidebarItem(kind: .location, title: title, symbol: symbol, tint: tint, url: url)
-            }
+        var styles: [String: (title: String, symbol: String, tint: NSColor)] = [:]
+        for (title, symbol, tint, url) in entries {
+            if let url { styles[url.standardizedFileURL.path] = (title, symbol, tint) }
         }
-        if case .accessDenied? = FinderFavorites.lastFailure {
+        return styles
+    }
+
+    /// Favoris de départ : ceux du Finder s'ils sont lisibles, sinon les dossiers standard.
+    static func defaultFavorites() -> [URL] {
+        if let finder = FinderFavorites.load(), !finder.isEmpty { return finder.map(\.url) }
+        let fm = FileManager.default
+        let standard: [URL?] = [fm.homeDirectoryForCurrentUser, fm.urls(for: .desktopDirectory, in: .userDomainMask).first,
+                                fm.urls(for: .documentDirectory, in: .userDomainMask).first, fm.urls(for: .downloadsDirectory, in: .userDomainMask).first,
+                                URL(fileURLWithPath: "/Applications"), fm.urls(for: .picturesDirectory, in: .userDomainMask).first,
+                                fm.urls(for: .musicDirectory, in: .userDomainMask).first, fm.urls(for: .moviesDirectory, in: .userDomainMask).first]
+        return standard.compactMap { $0 }.filter(\.isExistingDirectory)
+    }
+
+    func rebuild() {
+        guard !isRebuilding else { return }
+        let fm = FileManager.default
+
+        let favorites = SidebarItem(kind: .section, title: "Favoris")
+        favoritesSection = favorites
+        // Favoris modifiables : initialisés une fois depuis le Finder (ou la liste par défaut), puis gérés ici.
+        let urls = Preferences.sidebarFavorites ?? {
+            let initial = Self.defaultFavorites() + Preferences.customFavorites.filter { url in
+                !Self.defaultFavorites().contains { $0.isSameLocation(as: url) }
+            }
+            isRebuilding = true
+            Preferences.sidebarFavorites = initial
+            isRebuilding = false
+            return initial
+        }()
+        let style = Self.favoriteStyles()
+        favorites.children = urls.filter(\.isExistingDirectory).map { url in
+            let match = style[url.standardizedFileURL.path]
+            let isICloud = url.path.contains("Mobile Documents/com~apple~CloudDocs")
+            let item = SidebarItem(kind: .location, title: match?.title ?? FileManager.default.displayName(atPath: url.path),
+                                   symbol: match?.symbol ?? (isICloud ? "icloud" : "folder"),
+                                   tint: match?.tint ?? (isICloud ? .systemCyan : .systemTeal), url: url)
+            item.isCustomFavorite = true
+            return item
+        }
+        if case .accessDenied? = FinderFavorites.lastFailure, Preferences.sidebarFavorites?.isEmpty ?? true {
             // Les favoris du Finder sont protégés : on propose d'ouvrir le bon réglage.
             let hint = SidebarItem(kind: .finderAccess, title: "Afficher les favoris du Finder…", symbol: "lock.open", tint: .secondaryLabelColor)
             favorites.children.append(hint)
-        }
-        for url in Preferences.customFavorites where url.isExistingDirectory
-            && !favorites.children.contains(where: { $0.url?.isSameLocation(as: url) == true }) {
-            let item = SidebarItem(kind: .location, title: url.lastPathComponent, symbol: "folder", tint: .systemTeal, url: url)
-            item.isCustomFavorite = true
-            favorites.children.append(item)
         }
 
         let devices = SidebarItem(kind: .section, title: "Appareils")
@@ -220,7 +244,11 @@ final class SidebarViewController: NSViewController {
 
     @objc private func removeFavorite(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
-        Preferences.customFavorites.removeAll { $0.isSameLocation(as: url) }
+        Preferences.removeFavorite(url)
+    }
+
+    @objc private func resetFavorites(_ sender: NSMenuItem) {
+        Preferences.sidebarFavorites = Self.defaultFavorites()
     }
 
     @objc private func connectSaved(_ sender: NSMenuItem) {
@@ -298,8 +326,27 @@ extension SidebarViewController: NSOutlineViewDataSource, NSOutlineViewDelegate 
         return SidebarCell(item: item, target: self, ejectAction: #selector(eject(_:)))
     }
 
-    // Déposer des fichiers sur un favori ou un volume.
+    // Les favoris et volumes peuvent être glissés (vers un panneau, ou pour réordonner les favoris).
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+        guard let item = item as? SidebarItem, item.kind == .location || item.kind == .volume, let url = item.url, url.isFileURL else { return nil }
+        return url as NSURL
+    }
+
+    /// Position dans la liste enregistrée correspondant à un index d'insertion de la section.
+    private func favoritesIndex(forChildIndex index: Int) -> Int {
+        let saved = Preferences.sidebarFavorites ?? []
+        guard let children = favoritesSection?.children, index < children.count, let url = children[index].url,
+              let position = saved.firstIndex(where: { $0.isSameLocation(as: url) }) else { return saved.count }
+        return position
+    }
+
+    // Déposer des fichiers sur un favori ou un volume ; déposer des dossiers entre les favoris les ajoute.
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+        if let section = item as? SidebarItem, section === favoritesSection, index != NSOutlineViewDropOnItemIndex {
+            let folders = FileClipboard.fileURLs(from: info.draggingPasteboard).filter(\.isExistingDirectory)
+            guard !folders.isEmpty else { return [] }
+            return info.draggingSource as? NSOutlineView === outlineView ? .move : .link
+        }
         guard index == NSOutlineViewDropOnItemIndex, let destination = (item as? SidebarItem)?.url else { return [] }
         let sources = FileClipboard.fileURLs(from: info.draggingPasteboard)
         guard !sources.isEmpty, !sources.contains(where: { destination.isInside($0) }) else { return [] }
@@ -307,6 +354,16 @@ extension SidebarViewController: NSOutlineViewDataSource, NSOutlineViewDelegate 
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+        if let section = item as? SidebarItem, section === favoritesSection, index != NSOutlineViewDropOnItemIndex {
+            let folders = FileClipboard.fileURLs(from: info.draggingPasteboard).filter(\.isExistingDirectory)
+            let position = favoritesIndex(forChildIndex: index)
+            if info.draggingSource as? NSOutlineView === outlineView {
+                for (offset, url) in folders.enumerated() { Preferences.moveFavorite(url, to: position + offset) }
+            } else {
+                Preferences.addFavorites(folders, at: position)
+            }
+            return !folders.isEmpty
+        }
         guard let destination = (item as? SidebarItem)?.url else { return false }
         let sources = FileClipboard.fileURLs(from: info.draggingPasteboard)
         let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
@@ -328,8 +385,14 @@ extension SidebarViewController: NSMenuDelegate {
             open.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
             menu.addItem(open)
         }
+        if item === favoritesSection {
+            let reset = NSMenuItem(title: "Rétablir les favoris par défaut", action: #selector(resetFavorites(_:)), keyEquivalent: "")
+            reset.target = self
+            reset.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
+            menu.addItem(reset)
+        }
         if item.isCustomFavorite, let url = item.url {
-            let remove = NSMenuItem(title: "Retirer des favoris", action: #selector(removeFavorite(_:)), keyEquivalent: "")
+            let remove = NSMenuItem(title: "Retirer de la barre latérale", action: #selector(removeFavorite(_:)), keyEquivalent: "")
             remove.target = self
             remove.representedObject = url
             remove.image = NSImage(systemSymbolName: "star.slash", accessibilityDescription: nil)
