@@ -8,6 +8,7 @@ private extension NSToolbarItem.Identifier {
     static let colorTheme = NSToolbarItem.Identifier("colorTheme")
     static let viewMode = NSToolbarItem.Identifier("viewMode")
     static let diskUsage = NSToolbarItem.Identifier("diskUsage")
+    static let syncNavigation = NSToolbarItem.Identifier("syncNavigation")
     static let inspector = NSToolbarItem.Identifier("inspector")
     static let git = NSToolbarItem.Identifier("git")
     static let terminal = NSToolbarItem.Identifier("terminal")
@@ -219,6 +220,8 @@ final class PanelsViewController: NSViewController, PanelHost {
 
     // MARK: PanelHost
 
+    private var isSyncingNavigation = false
+
     func panelDidBecomeActive(_ panel: PanelViewController) {
         activeIndex = panel.index
         for other in panels { other.isActive = other === panel }
@@ -231,6 +234,31 @@ final class PanelsViewController: NSViewController, PanelHost {
 
     func panelSelectionDidChange(_ panel: PanelViewController) {
         if panel.index == activeIndex { onActiveSelectionChange?(panel) }
+    }
+
+    /// Navigation synchronisée : descendre dans un sous-dossier ou remonter de N niveaux
+    /// est reproduit dans les autres panneaux visibles, à partir de leur propre dossier.
+    func panel(_ panel: PanelViewController, didMoveFrom old: URL, to new: URL) {
+        guard Preferences.syncNavigation, !isSyncingNavigation, panel.index == activeIndex else { return }
+        let oldPath = old.standardized.path, newPath = new.standardized.path
+        func components(_ path: String) -> [String] { path.split(separator: "/").map(String.init) }
+        let from = components(oldPath), to = components(newPath)
+        let descending = to.count > from.count && Array(to.prefix(from.count)) == from && old.host == new.host
+        let ascending = from.count > to.count && Array(from.prefix(to.count)) == to && old.host == new.host
+        guard descending || ascending else { return }
+        isSyncingNavigation = true
+        defer { isSyncingNavigation = false }
+        for other in targetPanels(for: panel) {
+            var target = other.currentURL
+            if descending {
+                for component in to.dropFirst(from.count) { target.appendPathComponent(component, isDirectory: true) }
+                // Dossier absent de l'autre côté : le panneau reste où il est.
+                if !target.isRemote, !target.isExistingDirectory { NSSound.beep(); continue }
+            } else {
+                for _ in 0..<(from.count - to.count) where target.path != "/" { target.deleteLastPathComponent() }
+            }
+            other.navigate(to: target)
+        }
     }
 
     func panel(_ panel: PanelViewController, focusNextBackwards backwards: Bool) {
@@ -260,6 +288,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private weak var viewModeControl: NSSegmentedControl?
     private weak var gitButton: NSButton?
     private weak var diskUsageButton: NSButton?
+    private weak var syncButton: NSButton?
     private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self?.activePanel }
     private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self?.activePanel }
     private weak var terminalButton: NSButton?
@@ -320,7 +349,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             window.center()
         }
 
-        let toolbar = NSToolbar(identifier: "MainToolbar.v5")
+        let toolbar = NSToolbar(identifier: "MainToolbar.v6")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
@@ -444,6 +473,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         inspector.show(selection: panel.selectedItems, folder: panel.currentURL)
     }
 
+    /// Active ou désactive la navigation synchronisée des panneaux.
+    @objc func toggleSyncNavigation(_ sender: Any?) {
+        Preferences.syncNavigation.toggle()
+        syncButton?.state = Preferences.syncNavigation ? .on : .off
+    }
+
     @objc func setViewModeFromToolbar(_ sender: NSSegmentedControl) {
         guard let mode = PanelViewMode(rawValue: sender.selectedSegment) else { return }
         activePanel.setViewMode(mode)
@@ -543,6 +578,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         if menuItem.action == #selector(setLayout(_:)) {
             menuItem.state = menuItem.tag == panelsController.layout.rawValue ? .on : .off
         }
+        if menuItem.action == #selector(toggleSyncNavigation(_:)) {
+            menuItem.state = Preferences.syncNavigation ? .on : .off
+            return panelsController.layout.panelCount > 1
+        }
         if menuItem.action == #selector(toggleTerminal(_:)) {
             menuItem.title = terminalItem.isCollapsed ? "Afficher le terminal" : "Masquer le terminal"
         }
@@ -559,7 +598,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .sidebarTrackingSeparator, .back, .forward, .flexibleSpace,
-         .viewMode, .diskUsage, .layout, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector]
+         .viewMode, .diskUsage, .layout, .syncNavigation, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -614,6 +653,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = toggle
             item.label = isGit ? "Git" : "Terminal"
+            return item
+        case .syncNavigation:
+            let toggle = NSButton(image: NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Navigation synchronisée")!,
+                                  target: self, action: #selector(toggleSyncNavigation(_:)))
+            toggle.setButtonType(.pushOnPushOff)
+            toggle.bezelStyle = .toolbar
+            toggle.state = Preferences.syncNavigation ? .on : .off
+            toggle.toolTip = "Navigation synchronisée (⌃⌘Y) : les autres panneaux descendent et remontent avec le panneau actif"
+            syncButton = toggle
+            let item = NSToolbarItem(itemIdentifier: identifier)
+            item.view = toggle
+            item.label = "Synchro"
             return item
         case .diskUsage:
             let toggle = NSButton(image: NSImage(systemSymbolName: "chart.pie", accessibilityDescription: "Occupation du disque")!,

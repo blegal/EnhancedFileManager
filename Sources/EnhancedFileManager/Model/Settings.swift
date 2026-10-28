@@ -12,6 +12,12 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "verifyCopies") }
     }
 
+    /// Navigation synchronisée : les autres panneaux suivent les déplacements relatifs du panneau actif.
+    static var syncNavigation: Bool {
+        get { defaults.bool(forKey: "syncNavigation") }
+        set { defaults.set(newValue, forKey: "syncNavigation") }
+    }
+
     static var showHiddenFiles: Bool {
         get { defaults.bool(forKey: "showHiddenFiles") }
         set {

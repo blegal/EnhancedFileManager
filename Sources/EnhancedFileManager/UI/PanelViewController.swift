@@ -18,6 +18,8 @@ enum PanelViewMode: Int {
 protocol PanelHost: AnyObject {
     func panelDidBecomeActive(_ panel: PanelViewController)
     func panelDidChangeDirectory(_ panel: PanelViewController)
+    /// Déplacement explicite (navigation, retour, colonnes) : sert à la navigation synchronisée.
+    func panel(_ panel: PanelViewController, didMoveFrom old: URL, to new: URL)
     func panelSelectionDidChange(_ panel: PanelViewController)
     func panel(_ panel: PanelViewController, focusNextBackwards backwards: Bool)
     /// Les autres panneaux visibles, dans l'ordre (le premier est la cible par défaut de F5/F6).
@@ -805,25 +807,31 @@ final class PanelViewController: NSViewController {
         tab.back.append(currentURL)
         if tab.back.count > 200 { tab.back.removeFirst() }
         tab.forward.removeAll()
+        let old = currentURL
         tab.url = url
         tab.selection = select.map { [$0] } ?? []
         showCurrentTab()
+        host?.panel(self, didMoveFrom: old, to: url)
     }
 
     @objc func goBack(_ sender: Any?) {
         guard let previous = tab.back.popLast() else { return }
+        let old = currentURL
         tab.forward.append(currentURL)
         tab.selection = [currentURL]
         tab.url = previous
         showCurrentTab()
+        host?.panel(self, didMoveFrom: old, to: previous)
     }
 
     @objc func goForward(_ sender: Any?) {
         guard let next = tab.forward.popLast() else { return }
+        let old = currentURL
         tab.back.append(currentURL)
         tab.selection = []
         tab.url = next
         showCurrentTab()
+        host?.panel(self, didMoveFrom: old, to: next)
     }
 
     @objc func goUp(_ sender: Any?) {

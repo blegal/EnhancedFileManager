@@ -224,10 +224,12 @@ extension PanelViewController: NSBrowserDelegate {
         let parentURL = parent.url.standardizedFileURL
         if !parentURL.isSameLocation(as: currentURL) {
             // Changement de dossier sans recharger les colonnes (elles sont déjà à jour).
+            let old = currentURL
             tab.back.append(currentURL)
             tab.forward.removeAll()
             tab.url = parentURL
             followBrowserFolder()
+            host?.panel(self, didMoveFrom: old, to: parentURL)
         }
         items = browserListing(parentURL)
         allItems = items
