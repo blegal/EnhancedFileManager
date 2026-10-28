@@ -8,6 +8,7 @@ final class InspectorViewController: NSViewController {
     /// Aperçu riche (code, PDF, vidéo…) ; son image sert d'icône / miniature par défaut.
     private let previewPane = PreviewPane()
     private var preview: NSImageView { previewPane.imageView }
+    private let gitSection = GitInspectorSection()
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private var generalGrid = NSGridView()
@@ -37,9 +38,10 @@ final class InspectorViewController: NSViewController {
         stack.alignment = .leading
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 20, right: 16)
-        for view in [previewPane, titleLabel, subtitleLabel, generalHeader!, generalGrid, permissionsHeader!, permissionsGrid] {
+        for view in [previewPane, titleLabel, subtitleLabel, generalHeader!, generalGrid, permissionsHeader!, permissionsGrid, gitSection] {
             stack.addArrangedSubview(view)
         }
+        stack.setCustomSpacing(18, after: permissionsGrid)
         stack.setCustomSpacing(14, after: previewPane)
         stack.setCustomSpacing(16, after: subtitleLabel)
         stack.setCustomSpacing(18, after: generalGrid)
@@ -63,6 +65,7 @@ final class InspectorViewController: NSViewController {
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
             previewPane.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
             titleLabel.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -32),
+            gitSection.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
         ])
         for header in [generalHeader!, permissionsHeader!] {
             header.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32).isActive = true
@@ -106,6 +109,7 @@ final class InspectorViewController: NSViewController {
         }
         let url = selection.first?.url ?? folder
         shownURL = url
+        gitSection.show(url.isRemote ? nil : url)
         let item = selection.first ?? FileItem(url: url)
         titleLabel.stringValue = url.path == "/" ? BreadcrumbView.displayName(url) : item.name
         let icon = item.icon
@@ -148,6 +152,7 @@ final class InspectorViewController: NSViewController {
 
     private func showMultiple(_ items: [FileItem]) {
         shownURL = nil
+        gitSection.show(nil)
         let image = NSImage(systemSymbolName: "square.stack.3d.up", accessibilityDescription: nil)
         previewPane.showImage(image)
         preview.contentTintColor = .secondaryLabelColor

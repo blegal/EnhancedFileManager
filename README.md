@@ -85,6 +85,10 @@ dossiers colorés selon leur contenu, et pour chaque dossier qui est un dépôt 
 ↑ commits à pousser, ↓ commits à tirer (d’après le dernier `git fetch`, aucun accès réseau automatique).
 Mise à jour automatique via FSEvents.
 
+Dans l’inspecteur, section Git de l’élément sélectionné : état, indexer / désindexer / abandonner les
+modifications, valider, récupérer, tirer, pousser ; diff coloré et historique du fichier. Les phrases de
+passe SSH et identifiants HTTPS sont demandés par l’app (même fenêtre que pour SFTP).
+
 ## Terminal
 
 Terminal intégré en bas de la fenêtre (SwiftTerm), avec votre shell. Il suit le dossier du panneau actif
