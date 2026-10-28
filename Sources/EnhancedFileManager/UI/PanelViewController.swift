@@ -1281,6 +1281,7 @@ final class PanelViewController: NSViewController {
                 for format in ArchiveFormat.allCases {
                     let entry = NSMenuItem(title: "." + format.fileExtension, action: #selector(compressSelection(_:)), keyEquivalent: "")
                     entry.target = self
+                    entry.image = NSImage(systemSymbolName: "doc.zipper", accessibilityDescription: nil)
                     entry.tag = format.rawValue
                     formats.submenu?.addItem(entry)
                 }
@@ -1343,6 +1344,9 @@ final class PanelViewController: NSViewController {
             entry.target = self
             entry.representedObject = target
             entry.toolTip = target.currentURL.path
+            let icon = target.currentURL.isRemote ? NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil)! : NSWorkspace.shared.icon(forFile: target.currentURL.path)
+            icon.size = NSSize(width: 16, height: 16)
+            entry.image = icon
             submenu.addItem(entry)
         }
         item.submenu = submenu

@@ -325,18 +325,21 @@ extension SidebarViewController: NSMenuDelegate {
             let open = NSMenuItem(title: "Afficher dans le Finder", action: #selector(revealItem(_:)), keyEquivalent: "")
             open.target = self
             open.representedObject = url
+            open.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
             menu.addItem(open)
         }
         if item.isCustomFavorite, let url = item.url {
             let remove = NSMenuItem(title: "Retirer des favoris", action: #selector(removeFavorite(_:)), keyEquivalent: "")
             remove.target = self
             remove.representedObject = url
+            remove.image = NSImage(systemSymbolName: "star.slash", accessibilityDescription: nil)
             menu.addItem(remove)
         }
         if let connection = item.connection {
-            for (title, action) in [("Se connecter", #selector(connectSaved(_:))), ("Modifier…", #selector(editConnection(_:))),
-                                    ("Supprimer…", #selector(deleteConnection(_:)))] {
+            for (title, action, symbol) in [("Se connecter", #selector(connectSaved(_:)), "link"), ("Modifier…", #selector(editConnection(_:)), "pencil"),
+                                            ("Supprimer…", #selector(deleteConnection(_:)), "trash")] {
                 let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
+                entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
                 entry.target = self
                 entry.representedObject = ConnectionBox(connection)
                 menu.addItem(entry)
@@ -344,6 +347,7 @@ extension SidebarViewController: NSMenuDelegate {
         }
         if let endpoint = item.sftpEndpoint {
             let entry = NSMenuItem(title: "Se déconnecter", action: #selector(disconnect(_:)), keyEquivalent: "")
+            entry.image = NSImage(systemSymbolName: "eject", accessibilityDescription: nil)
             entry.target = self
             entry.representedObject = endpoint.key
             menu.addItem(entry)

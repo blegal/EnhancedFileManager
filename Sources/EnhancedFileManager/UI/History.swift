@@ -88,7 +88,9 @@ final class HistoryMenuProvider: NSObject, NSMenuDelegate {
                 menu.addItem(NSMenuItem(title: "Aucun dossier récent", action: nil, keyEquivalent: ""))
             } else {
                 menu.addItem(.separator())
-                menu.addItem(NSMenuItem(title: "Effacer la liste", action: #selector(AppDelegate.clearRecentFolders(_:)), keyEquivalent: ""))
+                let clear = NSMenuItem(title: "Effacer la liste", action: #selector(AppDelegate.clearRecentFolders(_:)), keyEquivalent: "")
+                clear.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+                menu.addItem(clear)
             }
         }
     }

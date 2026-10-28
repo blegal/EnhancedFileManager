@@ -96,14 +96,17 @@ extension PanelViewController {
             entry.target = self
             entry.representedObject = name
             entry.state = selection.allSatisfy { $0.tags.contains(name) } ? .on : .mixed
+            entry.image = NSImage(systemSymbolName: "tag", accessibilityDescription: nil)
             menu.addItem(entry)
         }
         menu.addItem(.separator())
         let other = NSMenuItem(title: "Ajouter un tag…", action: #selector(addCustomTag(_:)), keyEquivalent: "")
         other.target = self
+        other.image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil)
         menu.addItem(other)
         let clear = NSMenuItem(title: "Retirer tous les tags", action: #selector(clearTags(_:)), keyEquivalent: "")
         clear.target = self
+        clear.image = NSImage(systemSymbolName: "tag.slash", accessibilityDescription: nil)
         menu.addItem(clear)
         item.submenu = menu
         return item

@@ -242,6 +242,7 @@ private final class TabItemView: NSView {
         menu.addItem(.separator())
         let close = NSMenuItem(title: "Fermer l’onglet", action: #selector(closeTab), keyEquivalent: "")
         close.target = self
+        close.image = NSImage(systemSymbolName: "xmark.square", accessibilityDescription: nil)
         menu.addItem(close)
         return menu
     }
