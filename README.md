@@ -21,6 +21,7 @@ Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https:/
 | Dupliquer | ⌘D |
 | Copier vers / déplacer vers l’autre panneau | F5 / F6 |
 | Renommer | F2 |
+| Renommer par lot (plusieurs éléments) | F2 ou ⌃⌘R |
 | Placer dans la corbeille | ⌘⌫ |
 | Annuler / Rétablir | ⌘Z / ⇧⌘Z |
 | Nouveau dossier | ⇧⌘N |

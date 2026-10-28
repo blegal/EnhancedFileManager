@@ -53,6 +53,7 @@ enum MainMenu {
             item("Ajouter aux favoris", #selector(Panel.addToFavorites(_:)), "t", [.command, .control]),
             separator(),
             item("Renommer", #selector(Panel.renameSelection(_:)), functionKey(NSF2FunctionKey), []),
+            item("Renommer par lot…", #selector(Panel.batchRename(_:)), "r", [.command, .control]),
             item("Copier vers l’autre panneau", #selector(Panel.copyToOtherPanel(_:)), functionKey(NSF5FunctionKey), []),
             item("Déplacer vers l’autre panneau", #selector(Panel.moveToOtherPanel(_:)), functionKey(NSF6FunctionKey), []),
             item("Placer dans la corbeille", #selector(Panel.moveToTrash(_:)), "\u{8}"),

@@ -1041,6 +1041,7 @@ final class PanelViewController: NSViewController {
     }
 
     @objc func renameSelection(_ sender: Any?) {
+        if selectionIndexes.count > 1 { batchRename(sender); return }
         guard selectionIndexes.count == 1, let row = selectionIndexes.first else { return }
         if viewMode == .icons { renameWithSheet(items[row]); return }
         let column = tableView.column(withIdentifier: .name)
@@ -1278,6 +1279,7 @@ final class PanelViewController: NSViewController {
             }
             menu.addItem(.separator())
             if selection.count == 1 { add("Renommer", #selector(renameSelection(_:)), "pencil") }
+            if selection.count > 1 { add("Renommer par lot…", #selector(batchRename(_:)), "pencil.and.list.clipboard") }
             add(currentURL.isRemote ? "Supprimer du serveur…" : "Placer dans la corbeille", #selector(moveToTrash(_:)), "trash")
         }
         menu.addItem(.separator())
@@ -1357,7 +1359,9 @@ extension PanelViewController: NSMenuItemValidation {
         case #selector(syncOtherPanel(_:)):
             return !(host?.targetPanels(for: self).isEmpty ?? true)
         case #selector(renameSelection(_:)):
-            return selectionIndexes.count == 1
+            return !selectionIndexes.isEmpty
+        case #selector(batchRename(_:)):
+            return !selectionIndexes.isEmpty
         case #selector(showAsIcons(_:)), #selector(showAsList(_:)), #selector(showAsDetails(_:)):
             let mode: PanelViewMode = menuItem.action == #selector(showAsIcons(_:)) ? .icons
                 : menuItem.action == #selector(showAsList(_:)) ? .list : .details
