@@ -2,6 +2,7 @@
 
 Gestionnaire de fichiers macOS natif (AppKit, Swift) à 1, 2, 3 ou 4 panneaux avec onglets,
 dans l’esprit de ForkLift / Path Finder / muCommander. Aucune dépendance externe.
+Le dépôt contient aussi [iBaobab](#ibaobab), un analyseur d'occupation des disques.
 
 ## Compiler et lancer
 
@@ -195,6 +196,22 @@ intégré pour les autres documents.
 7. liste et soleil façon Baobab (liste dépliable avec barres d’utilisation, survol synchronisé).
 
 Les couleurs suivent le type de fichier, l’ancienneté ou la branche. Un clic sur un dossier y entre (le fil d’Ariane, l’historique et les onglets suivent, sans nouvelle analyse) ; ⌫, ⌘↑ ou le centre du soleil remontent. Le menu contextuel d’un bloc permet de l’ouvrir, de l’afficher dans la liste, dans le Finder ou de le placer dans la corbeille. Pour limiter la mémoire, seuls les 200 plus gros fichiers de chaque dossier sont gardés individuellement, les autres sont regroupés ; l’arbre est libéré en quittant le mode.
+
+## iBaobab
+
+iBaobab est une application à part, dédiée à l'analyse de l'occupation des disques. Elle partage avec le mode ⌘5 la bibliothèque `DiskUsageKit` (cible SwiftPM : scan, modèle `DiskNode`, les sept graphiques et la page d'analyse), sans dépendance externe.
+
+```bash
+./build-ibaobab.sh         # produit build/iBaobab.app (signée ad hoc ; mêmes variables que build.sh)
+open build/iBaobab.app
+Tools/make-dmg.sh iBaobab  # produit build/iBaobab-<version>.dmg
+```
+
+- **Accueil** : les volumes montés (icône, barre d'occupation, espace disponible sur le total, format), les dossiers usuels, le bouton « Choisir un dossier… » (⌘O) et le glisser-déposer d'un dossier sur la fenêtre ou sur l'icône du Dock.
+- **Onglets natifs** : chaque analyse s'ouvre dans un onglet. ⌘clic sur un dossier (graphique, liste ou fil d'Ariane) ou « Ouvrir dans un nouvel onglet » du menu contextuel ouvre un sous-dossier à côté, sans nouvelle analyse (l'arbre est partagé). ⌘T ou le bouton « + » ouvre un nouvel accueil, ⇧⌘H revient à l'accueil.
+- **Page d'analyse** : la même que dans Enhanced File Manager. Les sept vues sont accessibles par les icônes ou par ⌘1 … ⌘7 (carte épurée par défaut), avec les couleurs par type, ancienneté ou branche. On navigue en cliquant dans un dossier, avec le fil d'Ariane, précédent / suivant (⌘[ / ⌘]) et le dossier parent (⌘↑ ou ⌫). Le survol affiche la taille, la part du parent, le nombre de fichiers, les types principaux et la date. Les actions sont « Afficher dans le Finder » (⌥⌘R), « Placer dans la corbeille » (menu contextuel) et « Analyser de nouveau » (⌘R).
+
+L'identifiant est `local.iBaobab` (`Resources/iBaobab-Info.plist`). L'icône est dessinée par `Tools/make-icons.swift` et s'installe avec `Tools/set-app-icon.sh iBaobab`. Le workflow GitHub produit aussi `iBaobab-<version>.dmg` (binaire universel), en artefact et dans les releases.
 
 ## Actions personnalisées
 

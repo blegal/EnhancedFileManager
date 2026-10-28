@@ -1,4 +1,4 @@
-# Compile l'application, la signe et produit une image disque (.dmg).
+# Compile les applications (Enhanced File Manager et iBaobab), les signe et produit une image disque (.dmg) pour chacune.
 # - À chaque push sur main et à la demande : le DMG est un artefact du run (conservé 30 jours).
 # - Sur un tag v* (ex. v0.2.0) : le DMG est aussi publié dans une release GitHub.
 #
@@ -99,12 +99,36 @@ jobs:
             ${{ steps.sig.outputs.path }}
           retention-days: 30
 
+      - name: Compilation d'iBaobab (binaire universel)
+        env:
+          UNIVERSAL: "1"
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: ./build-ibaobab.sh
+
+      - name: Image disque d'iBaobab
+        id: dmg_ibaobab
+        env:
+          SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: |
+          DMG=$(Tools/make-dmg.sh iBaobab)
+          codesign --verify --deep --strict --verbose=2 build/iBaobab.app
+          lipo -info build/iBaobab.app/Contents/MacOS/iBaobab
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iBaobab-${{ steps.version.outputs.version }}
+          path: ${{ steps.dmg_ibaobab.outputs.path }}
+          retention-days: 30
+
       - name: Release GitHub
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" ${{ steps.sig.outputs.path }} \
+          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" ${{ steps.sig.outputs.path }} "${{ steps.dmg_ibaobab.outputs.path }}" \
             --title "Enhanced File Manager ${{ steps.version.outputs.version }}" \
             --notes "Application non notarisée : au premier lancement, clic droit sur l'app › Ouvrir, ou \`xattr -dr com.apple.quarantine \"/Applications/Enhanced File Manager.app\"\`."
 

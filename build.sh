@@ -1,5 +1,6 @@
 #!/bin/zsh
 # Compile l'application et produit build/EnhancedFileManager.app
+# (PRODUCT=iBaobab, ou ./build-ibaobab.sh, produit build/iBaobab.app)
 # Variables facultatives :
 #   UNIVERSAL=1        binaire universel (Apple Silicon + Intel)
 #   VERSION=1.2.0      numéro de version écrit dans Info.plist
@@ -8,6 +9,12 @@
 set -euo pipefail
 cd "${0:A:h}"
 CONFIG=${1:-release}
+PRODUCT=${PRODUCT:-EnhancedFileManager}
+if [[ "$PRODUCT" == EnhancedFileManager ]]; then
+    INFO=Resources/Info.plist ICON=Resources/AppIcon.icns
+else
+    INFO=Resources/$PRODUCT-Info.plist ICON=Resources/$PRODUCT.icns
+fi
 if [[ "${UNIVERSAL:-0}" == 1 ]]; then
     # Une compilation par architecture puis lipo : la compilation multi-architecture
     # en une passe (XCBuild) échoue sur le plugin de SwiftTerm.
@@ -16,22 +23,22 @@ if [[ "${UNIVERSAL:-0}" == 1 ]]; then
     mkdir -p build/slices
     for ARCH in arm64 x86_64; do
         TRIPLE="$ARCH-apple-macosx26.0"
-        swift build -c "$CONFIG" --triple "$TRIPLE"
-        cp "$(swift build -c "$CONFIG" --triple "$TRIPLE" --show-bin-path)/EnhancedFileManager" "build/slices/$ARCH"
-        SLICES+=("build/slices/$ARCH")
+        swift build -c "$CONFIG" --triple "$TRIPLE" --product "$PRODUCT"
+        cp "$(swift build -c "$CONFIG" --triple "$TRIPLE" --show-bin-path)/$PRODUCT" "build/slices/$PRODUCT-$ARCH"
+        SLICES+=("build/slices/$PRODUCT-$ARCH")
     done
-    BIN=build/EnhancedFileManager-universal
+    BIN=build/$PRODUCT-universal
     lipo -create -output "$BIN" "${SLICES[@]}"
 else
-    swift build -c "$CONFIG"
-    BIN="$(swift build -c "$CONFIG" --show-bin-path)/EnhancedFileManager"
+    swift build -c "$CONFIG" --product "$PRODUCT"
+    BIN="$(swift build -c "$CONFIG" --show-bin-path)/$PRODUCT"
 fi
-APP=build/EnhancedFileManager.app
+APP=build/$PRODUCT.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/EnhancedFileManager"
-cp Resources/Info.plist "$APP/Contents/"
-cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp "$BIN" "$APP/Contents/MacOS/$PRODUCT"
+cp "$INFO" "$APP/Contents/Info.plist"
+cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 PLIST="$APP/Contents/Info.plist"
 [[ -n "${VERSION:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 [[ -n "${BUILD_NUMBER:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
