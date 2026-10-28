@@ -36,7 +36,7 @@ Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https:/
 | Nouvel onglet / fermer l’onglet | ⌘T / ⌘W |
 | Onglet suivant / précédent | ⌃⇥ / ⌃⇧⇥ |
 | Fichiers cachés | ⇧⌘. |
-| Icônes / Liste / Liste détaillée | ⌘1 / ⌘2 / ⌘3 |
+| Icônes / Liste / Liste détaillée / Colonnes | ⌘1 / ⌘2 / ⌘3 / ⌘4 |
 | Zoom (icônes ou liste) | ⌘ + molette, pincement, ⌘+ / ⌘− |
 | Taille par défaut | ⌘0 |
 | Trier par nom, taille, date, type | ⌃⌥⌘1 … ⌃⌥⌘4 |

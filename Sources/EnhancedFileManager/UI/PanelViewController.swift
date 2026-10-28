@@ -12,7 +12,7 @@ final class TabState {
 }
 
 enum PanelViewMode: Int {
-    case icons, list, details
+    case icons, list, details, columns
 }
 
 protocol PanelHost: AnyObject {
@@ -55,21 +55,25 @@ final class PanelViewController: NSViewController {
     let tableView = FileTableView()
     private let scrollView = NSScrollView()
     let collectionView = FileCollectionView()
+    // Vue en colonnes
+    let browser = FileBrowser()
+    var browserCache: [String: [FileItem]] = [:]
+    var isSyncingBrowser = false
     private let gridScrollView = NSScrollView()
     private let sizeSlider = NSSlider(value: 96, minValue: 32, maxValue: 256, target: nil, action: nil)
     private(set) var viewMode: PanelViewMode
     private(set) var iconSize: CGFloat
     private(set) var listScale: CGFloat
     private let tabBar = TabBarView()
-    private let breadcrumb = BreadcrumbView()
+    let breadcrumb = BreadcrumbView()
     private let infoLabel = NSTextField(labelWithString: "")
     private let accentLine = NSView()
     private var tabBarHeight: NSLayoutConstraint!
 
-    private let watcher = DirectoryWatcher()
+    let watcher = DirectoryWatcher()
     private var loadGeneration = 0
     private var loadError: String?
-    private var freeSpace: String?
+    var freeSpace: String?
     private var cutPaths: Set<String> = []
     private var renamingRow: Int?
     private var reloadDeferred = false
@@ -112,11 +116,21 @@ final class PanelViewController: NSViewController {
 
     /// Indices sélectionnés, quel que soit le mode d'affichage.
     var selectionIndexes: IndexSet {
-        viewMode == .icons ? IndexSet(collectionView.selectionIndexPaths.map(\.item)) : tableView.selectedRowIndexes
+        switch viewMode {
+        case .icons: IndexSet(collectionView.selectionIndexPaths.map(\.item))
+        case .columns: browserSelection
+        case .list, .details: tableView.selectedRowIndexes
+        }
     }
 
     /// La vue qui reçoit le clavier dans le mode courant.
-    var focusView: NSView { viewMode == .icons ? collectionView : tableView }
+    var focusView: NSView {
+        switch viewMode {
+        case .icons: collectionView
+        case .columns: browser
+        case .list, .details: tableView
+        }
+    }
 
     var selectedItems: [FileItem] { selectionIndexes.compactMap { items.indices.contains($0) ? items[$0] : nil } }
     var selectedURLs: [URL] { selectedItems.map(\.url) }
@@ -196,7 +210,8 @@ final class PanelViewController: NSViewController {
         separator.boxType = .separator
 
         searchBar.isHidden = true
-        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView] as [NSView] {
+        configureBrowser()
+        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView, browser] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
@@ -235,6 +250,11 @@ final class PanelViewController: NSViewController {
             gridScrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             gridScrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             gridScrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+
+            browser.topAnchor.constraint(equalTo: separator.bottomAnchor),
+            browser.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            browser.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            browser.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
         // Fonds du thème de couleurs : bande de barre d'outils, en-tête, liste.
         ThemeBackgroundView.install(.toolbar, in: root, bottom: root.safeAreaLayoutGuide.topAnchor)
@@ -309,10 +329,12 @@ final class PanelViewController: NSViewController {
 
     /// Bascule entre icônes, liste et liste détaillée en conservant la sélection.
     func setViewMode(_ mode: PanelViewMode) {
+        if mode == .columns, currentURL.isRemote { NSSound.beep(); return }
         let hadFocus = view.window?.firstResponder === focusView
         let selection = selectionIndexes
         viewMode = mode
         applyViewMode()
+        if mode == .columns { syncBrowserToCurrentFolder() }
         reloadViews()
         setSelection(selection, scroll: true)
         if hadFocus || isActive { view.window?.makeFirstResponder(focusView) }
@@ -320,8 +342,9 @@ final class PanelViewController: NSViewController {
     }
 
     private func applyViewMode() {
-        scrollView.isHidden = viewMode == .icons
+        scrollView.isHidden = viewMode == .icons || viewMode == .columns
         gridScrollView.isHidden = viewMode != .icons
+        browser.isHidden = viewMode != .columns
         sizeSlider.isHidden = viewMode != .icons
         sizeSlider.doubleValue = Double(iconSize)
         let compact = viewMode == .list
@@ -368,6 +391,19 @@ final class PanelViewController: NSViewController {
         if viewMode == .icons { setIconSize(80) } else { setListScale(1) }
     }
 
+    /// La sélection des colonnes a changé de dossier : met à jour le panneau sans recharger les colonnes.
+    func followBrowserFolder() {
+        watcher.watch(currentURL)
+        breadcrumb.show(currentURL)
+        updateTabBar()
+        RecentFolders.record(currentURL)
+        folderSizeGeneration += 1
+        folderSizes = [:]
+        computingFolders = []
+        freeSpace = Format.freeSpace(at: currentURL)
+        host?.panelDidChangeDirectory(self)
+    }
+
     @objc func showAsIcons(_ sender: Any?) { setViewMode(.icons) }
     @objc func showAsList(_ sender: Any?) { setViewMode(.list) }
     @objc func showAsDetails(_ sender: Any?) { setViewMode(.details) }
@@ -386,12 +422,14 @@ final class PanelViewController: NSViewController {
     func reloadViews() {
         tableView.reloadData()
         collectionView.reloadData()
+        reloadBrowserColumn()
     }
 
     func setSelection(_ rows: IndexSet, scroll: Bool) {
         let valid = rows.filteredIndexSet { items.indices.contains($0) }
         tableView.selectRowIndexes(valid, byExtendingSelection: false)
         collectionView.selectionIndexPaths = Set(valid.map { IndexPath(item: $0, section: 0) })
+        selectInBrowser(valid)
         if let first = valid.first {
             tableView.scrollRowToVisible(first)
             collectionView.scrollToItems(at: [IndexPath(item: first, section: 0)], scrollPosition: .nearestHorizontalEdge)
@@ -402,7 +440,7 @@ final class PanelViewController: NSViewController {
         selectionDidChange()
     }
 
-    private func selectionDidChange() {
+    func selectionDidChange() {
         updateInfo()
         refreshQuickLook()
         host?.panelSelectionDidChange(self)
@@ -479,6 +517,9 @@ final class PanelViewController: NSViewController {
 
     private func showCurrentTab() {
         if isSearching { endSearch(reloadListing: false) }
+        // Pas de vue en colonnes sur un serveur SFTP.
+        if viewMode == .columns, currentURL.isRemote { viewMode = .details; applyViewMode() }
+        if viewMode == .columns { syncBrowserToCurrentFolder() }
         if isShown { RecentFolders.record(currentURL) }
         folderSizeGeneration += 1
         folderSizes = [:]
@@ -490,7 +531,7 @@ final class PanelViewController: NSViewController {
         host?.panelDidChangeDirectory(self)
     }
 
-    private func updateTabBar() {
+    func updateTabBar() {
         let multiple = tabs.count > 1
         tabBar.isHidden = !multiple
         tabBarHeight.constant = multiple ? 28 : 0
@@ -1211,7 +1252,7 @@ final class PanelViewController: NSViewController {
 
     // MARK: Clavier
 
-    private func handleKey(_ event: NSEvent) -> Bool {
+    func handleKey(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         switch event.keyCode {
         case 36 where modifiers.isEmpty, 76 where modifiers.isEmpty: // Retour / Entrée
@@ -1236,7 +1277,7 @@ final class PanelViewController: NSViewController {
 
     // MARK: Menu contextuel
 
-    private func contextMenu() -> NSMenu {
+    func contextMenu() -> NSMenu {
         let menu = NSMenu()
         let selection = selectedItems
         func add(_ title: String, _ action: Selector, _ symbol: String? = nil) {
@@ -1383,9 +1424,11 @@ extension PanelViewController: NSMenuItemValidation {
             return !selectionIndexes.isEmpty
         case #selector(batchRename(_:)):
             return !selectionIndexes.isEmpty
-        case #selector(showAsIcons(_:)), #selector(showAsList(_:)), #selector(showAsDetails(_:)):
+        case #selector(showAsIcons(_:)), #selector(showAsList(_:)), #selector(showAsDetails(_:)), #selector(showAsColumns(_:)):
             let mode: PanelViewMode = menuItem.action == #selector(showAsIcons(_:)) ? .icons
-                : menuItem.action == #selector(showAsList(_:)) ? .list : .details
+                : menuItem.action == #selector(showAsList(_:)) ? .list
+                : menuItem.action == #selector(showAsColumns(_:)) ? .columns : .details
+            if mode == .columns, currentURL.isRemote { return false }
             menuItem.state = mode == viewMode ? .on : .off
             return true
         case #selector(increaseIconSize(_:)), #selector(decreaseIconSize(_:)), #selector(resetZoom(_:)):

@@ -2,7 +2,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// Une entrée de dossier affichée dans un panneau.
-final class FileItem {
+final class FileItem: NSObject {
     /// Propriétés lues en une fois avec la liste du dossier (le type et l'icône sont calculés à la demande).
     static let resourceKeys: [URLResourceKey] = [
         .isDirectoryKey, .isPackageKey, .isHiddenKey, .isSymbolicLinkKey,
@@ -50,6 +50,7 @@ final class FileItem {
         size = entry.isDirectory ? nil : entry.size
         modificationDate = entry.date
         remoteKind = entry.isDirectory ? "Dossier" : entry.isSymlink ? "Lien symbolique" : nil
+        super.init()
     }
 
     init(url: URL) {
@@ -70,6 +71,7 @@ final class FileItem {
         size = directory ? nil : Int64(values?.fileSize ?? 0)
         modificationDate = values?.contentModificationDate
         remoteKind = nil
+        super.init()
     }
 
     static func contents(of directory: URL, showHidden: Bool) throws -> [FileItem] {

@@ -606,8 +606,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.label = isGit ? "Git" : "Terminal"
             return item
         case .viewMode:
-            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle"]
-            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)"]
+            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle", "rectangle.split.3x1"]
+            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)", "Colonnes (⌘4)"]
             let control = NSSegmentedControl(images: symbols.map { NSImage(systemSymbolName: $0, accessibilityDescription: nil)! },
                                              trackingMode: .selectOne, target: self, action: #selector(setViewModeFromToolbar(_:)))
             for (index, label) in labels.enumerated() { control.setToolTip(label, forSegment: index) }
