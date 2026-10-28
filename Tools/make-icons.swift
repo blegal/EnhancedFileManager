@@ -117,4 +117,38 @@ render("icone-D-echange") { r in
     arrows.lineWidth = 34; arrows.lineCapStyle = .round; arrows.lineJoinStyle = .round
     hex(0x0E7490).setStroke(); arrows.stroke()
 }
+// iBaobab — un baobab dont la couronne est un graphique en soleil, sur un ciel du soir.
+render("icone-iBaobab-arbre") { r in
+    NSGradient(colors: [hex(0x2A6F84), hex(0x0D2B38)])?.draw(in: r, angle: -90)
+    hex(0x071A22, 0.55).setFill()
+    NSBezierPath(ovalIn: NSRect(x: 250, y: 150, width: 524, height: 90)).fill()
+    // Tronc en bouteille, large à la base, fondu dans le moyeu de la couronne.
+    let center = NSPoint(x: 512, y: 560)
+    let trunk = NSBezierPath()
+    trunk.move(to: NSPoint(x: 352, y: 196))
+    trunk.curve(to: NSPoint(x: 424, y: 560), controlPoint1: NSPoint(x: 326, y: 360), controlPoint2: NSPoint(x: 410, y: 440))
+    trunk.line(to: NSPoint(x: 600, y: 560))
+    trunk.curve(to: NSPoint(x: 672, y: 196), controlPoint1: NSPoint(x: 614, y: 440), controlPoint2: NSPoint(x: 698, y: 360))
+    trunk.close()
+    trunk.append(NSBezierPath(ovalIn: NSRect(x: center.x - 92, y: center.y - 92, width: 184, height: 184)).reversed)
+    trunk.windingRule = .nonZero
+    NSGradient(colors: [hex(0xDDB383), hex(0x8F5F3D)])?.draw(in: trunk, angle: 0)
+    // Deux anneaux de secteurs (dossiers puis sous-dossiers), comme dans la vue « Soleil ».
+    func ring(_ r0: CGFloat, _ r1: CGFloat, _ parts: [(CGFloat, UInt32)]) {
+        let total = parts.reduce(0) { $0 + $1.0 }
+        var angle: CGFloat = 196
+        for (weight, color) in parts {
+            let sweep = 212 * weight / total
+            let path = NSBezierPath()
+            path.appendArc(withCenter: center, radius: r1, startAngle: angle - 1.2, endAngle: angle - sweep + 1.2, clockwise: true)
+            path.appendArc(withCenter: center, radius: r0, startAngle: angle - sweep + 1.2, endAngle: angle - 1.2, clockwise: false)
+            path.close()
+            hex(color).setFill()
+            path.fill()
+            angle -= sweep
+        }
+    }
+    ring(104, 214, [(5, 0x3FBF7F), (3, 0x8FD656), (2, 0xF2C14E), (2, 0x2FA36B)])
+    ring(222, 330, [(3, 0x2E9E66), (2, 0x5CCB6F), (2, 0x9BE15D), (1.5, 0xC9E36B), (1.5, 0xF2C14E), (1, 0xE88A3C), (2, 0x47B881)])
+}
 print("ok")
