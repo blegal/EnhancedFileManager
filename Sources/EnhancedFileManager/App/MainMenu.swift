@@ -79,6 +79,8 @@ enum MainMenu {
             item("Copier le chemin", #selector(Panel.copyPath(_:)), "c", [.command, .option]),
             separator(),
             item("Tout sélectionner", #selector(NSResponder.selectAll(_:)), "a"),
+            separator(),
+            item("Rechercher…", #selector(Panel.showSearch(_:)), "f"),
         ])
 
         let sortMenu = NSMenuItem(title: "Trier par", action: nil, keyEquivalent: "")

@@ -41,6 +41,7 @@ Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https:/
 | Compresser / Décompresser ici | ⌥⌘K / ⌥⌘E |
 | Décompresser vers l’autre panneau | ⇧⌥⌘E |
 | Aller au dossier | ⇧⌘G |
+| Rechercher (ce dossier, sous-dossiers, contenu) | ⌘F, Échap pour fermer |
 | Même dossier dans l’autre panneau | ⌘= |
 | Se connecter au serveur (SFTP, SMB, AFP, NFS, WebDAV) | ⌘K |
 | Terminal intégré | ⌃` |

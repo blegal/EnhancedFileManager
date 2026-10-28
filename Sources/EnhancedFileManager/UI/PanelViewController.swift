@@ -40,7 +40,17 @@ final class PanelViewController: NSViewController {
 
     private(set) var tabs: [TabState]
     private(set) var selectedTabIndex: Int
-    private(set) var items: [FileItem] = []
+    /// Éléments affichés (après filtre de recherche) et contenu complet du dossier.
+    var items: [FileItem] = []
+    var allItems: [FileItem] = []
+
+    // Recherche (⌘F)
+    let searchBar = PanelSearchBar()
+    var searchBarHeight: NSLayoutConstraint!
+    var searchQuery: NSMetadataQuery?
+    var isShowingSearchResults = false
+    var searchResultsTruncated = false
+    var searchGeneration = 0
 
     let tableView = FileTableView()
     private let scrollView = NSScrollView()
@@ -180,11 +190,13 @@ final class PanelViewController: NSViewController {
         let separator = NSBox()
         separator.boxType = .separator
 
-        for view in [accentLine, tabBar, header, separator, scrollView, gridScrollView] as [NSView] {
+        searchBar.isHidden = true
+        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
         tabBarHeight = tabBar.heightAnchor.constraint(equalToConstant: 0)
+        searchBarHeight = searchBar.heightAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
             accentLine.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
             accentLine.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 10),
@@ -200,7 +212,12 @@ final class PanelViewController: NSViewController {
             header.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             header.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14),
 
-            separator.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 8),
+            searchBar.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
+            searchBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            searchBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            searchBarHeight,
+
+            separator.topAnchor.constraint(equalTo: searchBar.bottomAnchor, constant: 4),
             separator.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: root.trailingAnchor),
 
@@ -361,12 +378,12 @@ final class PanelViewController: NSViewController {
         if viewMode == .icons { tableView(tableView, sortDescriptorsDidChange: []) }
     }
 
-    private func reloadViews() {
+    func reloadViews() {
         tableView.reloadData()
         collectionView.reloadData()
     }
 
-    private func setSelection(_ rows: IndexSet, scroll: Bool) {
+    func setSelection(_ rows: IndexSet, scroll: Bool) {
         let valid = rows.filteredIndexSet { items.indices.contains($0) }
         tableView.selectRowIndexes(valid, byExtendingSelection: false)
         collectionView.selectionIndexPaths = Set(valid.map { IndexPath(item: $0, section: 0) })
@@ -392,6 +409,13 @@ final class PanelViewController: NSViewController {
         tabBar.onClose = { [weak self] index in self?.closeTab(at: index) }
         tabBar.onSetColor = { [weak self] index, color in self?.setTabColor(color, at: index) }
         tabBar.onAdd = { [weak self] in self?.newTab(nil) }
+        searchBar.onChange = { [weak self] text, scope in self?.searchChanged(text, scope: scope) }
+        searchBar.onClose = { [weak self] in self?.endSearch() }
+        searchBar.onMoveDown = { [weak self] in
+            guard let self else { return }
+            view.window?.makeFirstResponder(focusView)
+            if selectionIndexes.isEmpty, !items.isEmpty { setSelection([0], scroll: true) }
+        }
         watcher.onChange = { [weak self] in self?.reload() }
 
         let center = NotificationCenter.default
@@ -449,6 +473,7 @@ final class PanelViewController: NSViewController {
     // MARK: Chargement
 
     private func showCurrentTab() {
+        if isSearching { endSearch(reloadListing: false) }
         if currentURL.isRemote || !isShown { watcher.stop() } else { watcher.watch(currentURL) }
         breadcrumb.show(currentURL)
         updateTabBar()
@@ -469,6 +494,8 @@ final class PanelViewController: NSViewController {
     /// Recharge le dossier courant en arrière-plan en conservant (ou imposant) la sélection.
     func reload(selecting urls: [URL]? = nil, scrollToSelection: Bool = false, fallbackRow: Int? = nil, completion: (() -> Void)? = nil) {
         if renamingRow != nil { reloadDeferred = true; return }
+        // Les résultats d'une recherche restent affichés jusqu'à sa fermeture.
+        if isShowingSearchResults { completion?(); return }
         let url = currentURL
         let showHidden = Preferences.showHiddenFiles
         let wanted = urls ?? selectedURLs
@@ -490,7 +517,9 @@ final class PanelViewController: NSViewController {
     private func apply(_ result: Result<[FileItem], Error>, freeSpace: String?, selecting wanted: [URL], scroll: Bool, fallbackRow: Int?) {
         switch result {
         case .success(let list):
-            items = list
+            allItems = list
+            let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
+            items = filter.map { match in list.filter { match($0.name) } } ?? list
             loadError = nil
         case .failure(let error):
             if !currentURL.isRemote, !currentURL.isExistingDirectory {
@@ -502,6 +531,7 @@ final class PanelViewController: NSViewController {
                 return
             }
             items = []
+            allItems = []
             loadError = (error as NSError).code == NSFileReadNoPermissionError
                 ? "Accès refusé" : error.localizedDescription
             if currentURL.isRemote {
@@ -519,7 +549,7 @@ final class PanelViewController: NSViewController {
         refreshGit()
     }
 
-    private static func sorted(_ list: [FileItem], by descriptor: NSSortDescriptor) -> [FileItem] {
+    static func sorted(_ list: [FileItem], by descriptor: NSSortDescriptor) -> [FileItem] {
         let key = descriptor.key ?? "name"
         let ascending = descriptor.ascending
         return list.sorted { a, b in
@@ -547,6 +577,13 @@ final class PanelViewController: NSViewController {
         }
         let selection = selectedItems
         var text: String
+        if isShowingSearchResults {
+            text = items.count <= 1 ? "\(items.count) résultat" : "\(items.count) résultats"
+            if searchResultsTruncated { text += " (limité à 2 000)" }
+            if !selection.isEmpty { text += " — \(selection.count) sélectionné\(selection.count > 1 ? "s" : "")" }
+            infoLabel.stringValue = text
+            return
+        }
         if selection.isEmpty {
             text = Format.items(items.count)
         } else {
@@ -1172,6 +1209,8 @@ final class PanelViewController: NSViewController {
             goUp(nil)
         case 48 where modifiers.isEmpty || modifiers == .shift: // Tab
             host?.panel(self, focusNextBackwards: modifiers == .shift)
+        case 53 where modifiers.isEmpty && isSearching: // Échap ferme la recherche
+            endSearch()
         case 49 where modifiers.isEmpty: // Espace
             quickLook(nil)
         default:
@@ -1389,9 +1428,11 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
             field.stringValue = item.modificationDate.map { Format.dateFormatter.string(from: $0) } ?? ""
             field.alignment = .left
         default:
-            field.stringValue = item.isNavigableDirectory ? "Dossier" : item.kind
+            // Dans les résultats de recherche, la colonne indique le dossier de chaque élément.
+            field.stringValue = isShowingSearchResults ? searchLocation(of: item) : (item.isNavigableDirectory ? "Dossier" : item.kind)
             field.alignment = .left
         }
+        field.toolTip = isShowingSearchResults ? item.url.deletingLastPathComponent().path : nil
         cell.alphaValue = dimmed ? 0.5 : 1
         return cell
     }
@@ -1454,7 +1495,13 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         guard let descriptor = tableView.sortDescriptors.first else { return }
         sortDescriptor = descriptor
         let selection = selectedURLs
-        items = Self.sorted(items, by: sortDescriptor)
+        if isShowingSearchResults {
+            items = Self.sorted(items, by: sortDescriptor)
+        } else {
+            allItems = Self.sorted(allItems, by: sortDescriptor)
+            let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
+            items = filter.map { match in allItems.filter { match($0.name) } } ?? allItems
+        }
         reloadViews()
         let paths = Set(selection.map(\.normalizedPath))
         setSelection(IndexSet(items.indices.filter { paths.contains(items[$0].url.normalizedPath) }), scroll: false)
