@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS("26.0")],
     products: [
         .executable(name: "EnhancedFileManager", targets: ["EnhancedFileManager"]),
+        .executable(name: "iBaobab", targets: ["iBaobab"]),
     ],
     dependencies: [
         // Émulateur de terminal (licence MIT) pour le terminal intégré.
@@ -28,6 +29,12 @@ let package = Package(
             name: "EnhancedFileManager",
             dependencies: ["DiskUsageKit", "UpdateKit", .product(name: "SwiftTerm", package: "SwiftTerm")],
             path: "Sources/EnhancedFileManager",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "iBaobab",
+            dependencies: ["DiskUsageKit"],
+            path: "Sources/iBaobab",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
