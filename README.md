@@ -58,6 +58,7 @@ Facultatif : pour signer avec un certificat stable (auto-signé, ou Developer ID
 | Onglet suivant / précédent | ⌃⇥ / ⌃⇧⇥ |
 | Fichiers cachés | ⇧⌘. |
 | Icônes / Liste / Liste détaillée / Colonnes | ⌘1 / ⌘2 / ⌘3 / ⌘4 |
+| Occupation du disque (activer / quitter) | ⌘5 (Échap pour quitter) |
 | Zoom (icônes ou liste) | ⌘ + molette, pincement, ⌘+ / ⌘− |
 | Taille par défaut | ⌘0 |
 | Trier par nom, taille, date, type | ⌃⌥⌘1 … ⌃⌥⌘4 |
@@ -161,6 +162,20 @@ déplacement entre disques, l’original n’est supprimé qu’après vérifica
 Code et texte avec coloration syntaxique (Swift, C/C++, Python, JavaScript/TypeScript, Java/Kotlin, Go, Rust,
 shell, JSON, LaTeX, Markdown), PDF feuilletable (PDFKit), vidéo et audio (AVKit), images, et Coup d’œil
 intégré pour les autres documents.
+
+## Occupation du disque
+
+⌘5, le 5ᵉ bouton de présentation de la barre d’outils ou « Analyser l’espace disque » dans le menu contextuel d’un dossier : le panneau remplace la liste des fichiers par la répartition de l’espace du dossier courant, analysée en arrière-plan (taille réellement occupée sur le disque, sans suivre les liens symboliques ni traverser les autres volumes). La vue par défaut est la **carte épurée** ; sept icônes permettent de basculer entre :
+
+1. carte coussin (relief façon GdMap) ;
+2. carte épurée (par défaut) ;
+3. soleil (anneaux concentriques) ;
+4. partition empilée (une rangée par niveau) ;
+5. histogramme des éléments directs, barres réparties par type ;
+6. anneau et liste ;
+7. liste et soleil façon Baobab (liste dépliable avec barres d’utilisation, survol synchronisé).
+
+Les couleurs suivent le type de fichier, l’ancienneté ou la branche. Un clic sur un dossier y entre (le fil d’Ariane, l’historique et les onglets suivent, sans nouvelle analyse) ; ⌫, ⌘↑ ou le centre du soleil remontent. Le menu contextuel d’un bloc permet de l’ouvrir, de l’afficher dans la liste, dans le Finder ou de le placer dans la corbeille. Pour limiter la mémoire, seuls les 200 plus gros fichiers de chaque dossier sont gardés individuellement, les autres sont regroupés ; l’arbre est libéré en quittant le mode.
 
 ## Actions personnalisées
 

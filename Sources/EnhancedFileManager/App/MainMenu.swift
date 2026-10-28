@@ -122,6 +122,7 @@ enum MainMenu {
             item("Liste", #selector(Panel.showAsList(_:)), "2"),
             item("Liste détaillée", #selector(Panel.showAsDetails(_:)), "3"),
             item("Colonnes", #selector(Panel.showAsColumns(_:)), "4"),
+            item("Occupation du disque", #selector(Panel.toggleDiskUsage(_:)), "5"),
             item("Agrandir", #selector(Panel.increaseIconSize(_:)), "+"),
             item("Réduire", #selector(Panel.decreaseIconSize(_:)), "-"),
             item("Taille par défaut", #selector(Panel.resetZoom(_:)), "0"),

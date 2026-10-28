@@ -409,7 +409,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         window?.representedURL = nil
         sidebar.highlight(panel.currentURL)
         layoutItem?.image = panelsController.layout.icon()
-        viewModeControl?.selectedSegment = panel.viewMode.rawValue
+        viewModeControl?.selectedSegment = panel.isShowingDiskUsage ? 4 : panel.viewMode.rawValue
         updateInspector(panel)
         terminalController.activePanelDidChange(to: panel.currentURL)
     }
@@ -441,7 +441,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     }
 
     @objc func setViewModeFromToolbar(_ sender: NSSegmentedControl) {
-        guard let mode = PanelViewMode(rawValue: sender.selectedSegment) else { return }
+        // Dernier segment : occupation du disque.
+        guard let mode = PanelViewMode(rawValue: sender.selectedSegment) else {
+            activePanel.setDiskUsageVisible(true)
+            sender.selectedSegment = activePanel.isShowingDiskUsage ? 4 : activePanel.viewMode.rawValue
+            return
+        }
         activePanel.setViewMode(mode)
     }
 
@@ -606,12 +611,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.label = isGit ? "Git" : "Terminal"
             return item
         case .viewMode:
-            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle", "rectangle.split.3x1"]
-            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)", "Colonnes (⌘4)"]
+            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle", "rectangle.split.3x1", "chart.pie"]
+            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)", "Colonnes (⌘4)", "Occupation du disque (⌘5)"]
             let control = NSSegmentedControl(images: symbols.map { NSImage(systemSymbolName: $0, accessibilityDescription: nil)! },
                                              trackingMode: .selectOne, target: self, action: #selector(setViewModeFromToolbar(_:)))
             for (index, label) in labels.enumerated() { control.setToolTip(label, forSegment: index) }
-            control.selectedSegment = activePanel.viewMode.rawValue
+            control.selectedSegment = activePanel.isShowingDiskUsage ? 4 : activePanel.viewMode.rawValue
             viewModeControl = control
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = control

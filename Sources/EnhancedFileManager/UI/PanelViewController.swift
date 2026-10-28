@@ -60,6 +60,9 @@ final class PanelViewController: NSViewController {
     var browserCache: [String: [FileItem]] = [:]
     var isSyncingBrowser = false
     private let gridScrollView = NSScrollView()
+    // Occupation du disque (⌘5)
+    let diskUsageView = DiskUsageView()
+    var isShowingDiskUsage = false
     private let sizeSlider = NSSlider(value: 96, minValue: 32, maxValue: 256, target: nil, action: nil)
     private(set) var viewMode: PanelViewMode
     private(set) var iconSize: CGFloat
@@ -125,7 +128,8 @@ final class PanelViewController: NSViewController {
 
     /// La vue qui reçoit le clavier dans le mode courant.
     var focusView: NSView {
-        switch viewMode {
+        if isShowingDiskUsage { return diskUsageView.chart }
+        return switch viewMode {
         case .icons: collectionView
         case .columns: browser
         case .list, .details: tableView
@@ -211,7 +215,8 @@ final class PanelViewController: NSViewController {
 
         searchBar.isHidden = true
         configureBrowser()
-        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView, browser] as [NSView] {
+        diskUsageView.isHidden = true
+        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView, browser, diskUsageView] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
@@ -255,6 +260,11 @@ final class PanelViewController: NSViewController {
             browser.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             browser.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             browser.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+
+            diskUsageView.topAnchor.constraint(equalTo: separator.bottomAnchor),
+            diskUsageView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            diskUsageView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            diskUsageView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
         // Fonds du thème de couleurs : bande de barre d'outils, en-tête, liste.
         ThemeBackgroundView.install(.toolbar, in: root, bottom: root.safeAreaLayoutGuide.topAnchor)
@@ -332,6 +342,10 @@ final class PanelViewController: NSViewController {
         if mode == .columns, currentURL.isRemote { NSSound.beep(); return }
         let hadFocus = view.window?.firstResponder === focusView
         let selection = selectionIndexes
+        if isShowingDiskUsage {
+            isShowingDiskUsage = false
+            diskUsageView.stop()
+        }
         viewMode = mode
         applyViewMode()
         if mode == .columns { syncBrowserToCurrentFolder() }
@@ -341,11 +355,12 @@ final class PanelViewController: NSViewController {
         host?.panelDidChangeDirectory(self)
     }
 
-    private func applyViewMode() {
-        scrollView.isHidden = viewMode == .icons || viewMode == .columns
-        gridScrollView.isHidden = viewMode != .icons
-        browser.isHidden = viewMode != .columns
-        sizeSlider.isHidden = viewMode != .icons
+    func applyViewMode() {
+        scrollView.isHidden = isShowingDiskUsage || viewMode == .icons || viewMode == .columns
+        gridScrollView.isHidden = isShowingDiskUsage || viewMode != .icons
+        browser.isHidden = isShowingDiskUsage || viewMode != .columns
+        diskUsageView.isHidden = !isShowingDiskUsage
+        sizeSlider.isHidden = isShowingDiskUsage || viewMode != .icons
         sizeSlider.doubleValue = Double(iconSize)
         let compact = viewMode == .list
         for column in tableView.tableColumns where column.identifier != .name { column.isHidden = compact }
@@ -460,6 +475,7 @@ final class PanelViewController: NSViewController {
             if selectionIndexes.isEmpty, !items.isEmpty { setSelection([0], scroll: true) }
         }
         watcher.onChange = { [weak self] in self?.reload() }
+        configureDiskUsage()
 
         let center = NotificationCenter.default
         center.addObserver(forName: Preferences.showHiddenChanged, object: nil, queue: .main) { [weak self] _ in self?.reload() }
@@ -528,6 +544,7 @@ final class PanelViewController: NSViewController {
         breadcrumb.show(currentURL)
         updateTabBar()
         reload(selecting: tab.selection, scrollToSelection: true)
+        if isShowingDiskUsage { showDiskUsage() }
         host?.panelDidChangeDirectory(self)
     }
 
@@ -1292,6 +1309,9 @@ final class PanelViewController: NSViewController {
             if selection.contains(where: \.isNavigableDirectory) {
                 add("Ouvrir dans un nouvel onglet", #selector(openInNewTab(_:)), "plus.square.on.square")
             }
+            if selection.count == 1, selection[0].isNavigableDirectory, !currentURL.isRemote {
+                add("Analyser l’espace disque", #selector(analyzeDiskUsage(_:)), "chart.pie")
+            }
             if selection.count == 1, selection[0].isPackage {
                 add("Afficher le contenu du paquet", #selector(showPackageContents(_:)), "shippingbox")
             }
@@ -1347,6 +1367,7 @@ final class PanelViewController: NSViewController {
         if !currentURL.isRemote {
             add("Afficher dans le Finder", #selector(revealInFinder(_:)), "macwindow")
             add("Ouvrir dans le Terminal", #selector(openInTerminal(_:)), "terminal")
+            if selection.isEmpty { add("Occupation du disque", #selector(toggleDiskUsage(_:)), "chart.pie") }
         }
         return menu
     }
@@ -1429,8 +1450,13 @@ extension PanelViewController: NSMenuItemValidation {
                 : menuItem.action == #selector(showAsList(_:)) ? .list
                 : menuItem.action == #selector(showAsColumns(_:)) ? .columns : .details
             if mode == .columns, currentURL.isRemote { return false }
-            menuItem.state = mode == viewMode ? .on : .off
+            menuItem.state = mode == viewMode && !isShowingDiskUsage ? .on : .off
             return true
+        case #selector(toggleDiskUsage(_:)):
+            menuItem.state = isShowingDiskUsage ? .on : .off
+            return !currentURL.isRemote
+        case #selector(analyzeDiskUsage(_:)):
+            return !currentURL.isRemote
         case #selector(increaseIconSize(_:)), #selector(decreaseIconSize(_:)), #selector(resetZoom(_:)):
             return true
         case #selector(sortBy(_:)):
