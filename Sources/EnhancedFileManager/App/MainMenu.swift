@@ -1,4 +1,5 @@
 import AppKit
+import UpdateKit
 
 enum MainMenu {
     /// Menu « Actions » : actions personnalisées (avec leurs raccourcis) et gestion.
@@ -42,8 +43,12 @@ enum MainMenu {
         services.submenu = NSMenu(title: "Services")
         NSApp.servicesMenu = services.submenu
 
+        let updates = item("Rechercher les mises à jour…", #selector(Updater.checkForUpdates(_:)))
+        updates.target = MainActor.assumeIsolated { Updater.shared }
+
         submenu(appName, [
             item("À propos de \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            updates,
             separator(),
             services,
             separator(),

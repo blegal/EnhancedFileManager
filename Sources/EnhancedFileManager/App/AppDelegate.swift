@@ -1,4 +1,5 @@
 import AppKit
+import UpdateKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var windowControllers: [MainWindowController] = []
@@ -15,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             self?.saveSession()
         }
         NSApp.activate()
+        Updater.shared.beforeRelaunch = { [weak self] in self?.saveSession() }
+        Updater.shared.checkAtLaunch()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

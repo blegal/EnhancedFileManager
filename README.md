@@ -33,6 +33,25 @@ xattr -dr com.apple.quarantine "/Applications/Enhanced File Manager.app"
 
 Facultatif : pour signer avec un certificat stable (auto-signé, ou Developer ID plus tard), ajoutez dans les secrets du dépôt `MACOS_CERTIFICATE_P12` (le .p12 encodé en base64) et `MACOS_CERTIFICATE_PASSWORD`. Une identité stable évite que macOS redemande les autorisations (dossiers, trousseau) après chaque mise à jour.
 
+## Mise à jour automatique
+
+L'application vérifie les nouvelles versions au lancement (au plus une fois par jour) et à la demande par **Enhanced File Manager › Rechercher les mises à jour…**. Tout est natif (cible `UpdateKit`, réutilisable par une autre application du paquet), sans Sparkle :
+
+1. `URLSession` interroge `https://api.github.com/repos/blegal/EnhancedFileManager/releases/latest` et compare le tag à `CFBundleShortVersionString` (`0.2.0-dev.5` précède `0.2.0`).
+2. Une fenêtre affiche les notes de version (corps de la release) : **Installer**, **Plus tard** ou **Ignorer cette version** (la vérification manuelle propose quand même une version ignorée).
+3. Le DMG est téléchargé avec sa progression, puis sa signature Ed25519 (asset `….dmg.sig`) est vérifiée avec CryptoKit et la clé publique embarquée (`UpdatePublicKey` dans `Resources/Info.plist`). Une signature absente ou invalide arrête tout.
+4. L'image est montée (`hdiutil attach -nobrowse`), la nouvelle application est copiée à côté de l'ancienne, la session est sauvegardée, puis un petit script détaché attend la fin du processus, échange les paquets et relance l'application. Il faut pouvoir écrire dans le dossier de l'application (sinon, un message le dit).
+
+Le dépôt reste privé jusqu'à la v1.0 : l'API répond alors 404. La vérification au lancement reste silencieuse ; la vérification manuelle explique que les mises à jour ne sont pas encore publiées. Rien à changer le jour où le dépôt devient public.
+
+**Clé de signature (une seule fois).**
+
+```bash
+swift Tools/make-update-key.swift
+```
+
+Le script affiche la clé privée, à enregistrer dans le secret `UPDATE_SIGNING_KEY` du dépôt (Settings › Secrets and variables › Actions, ou `gh secret set UPDATE_SIGNING_KEY`), et la clé publique, à placer dans `Resources/Info.plist` (clé `UpdatePublicKey`). Le workflow signe ensuite chaque DMG avec `Tools/sign-update.swift` et publie la signature avec la release. Sans le secret, la release est publiée sans `.sig` et la mise à jour automatique la refuse. Si la clé privée est perdue, les copies déjà installées devront être mises à jour à la main une fois.
+
 ## Raccourcis
 
 | Action | Raccourci |

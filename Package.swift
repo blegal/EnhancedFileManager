@@ -18,9 +18,15 @@ let package = Package(
             path: "Sources/DiskUsageKit",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // Mise à jour automatique depuis les releases GitHub (signature Ed25519).
+        .target(
+            name: "UpdateKit",
+            path: "Sources/UpdateKit",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .executableTarget(
             name: "EnhancedFileManager",
-            dependencies: ["DiskUsageKit", .product(name: "SwiftTerm", package: "SwiftTerm")],
+            dependencies: ["DiskUsageKit", "UpdateKit", .product(name: "SwiftTerm", package: "SwiftTerm")],
             path: "Sources/EnhancedFileManager",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

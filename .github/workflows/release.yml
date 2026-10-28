@@ -77,10 +77,26 @@ jobs:
           lipo -info build/EnhancedFileManager.app/Contents/MacOS/EnhancedFileManager
           echo "path=$DMG" >> "$GITHUB_OUTPUT"
 
+      # Signature Ed25519 vérifiée par la mise à jour automatique (clé : Tools/make-update-key.swift).
+      - name: Signature de mise à jour
+        id: sig
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          DMG="${{ steps.dmg.outputs.path }}"
+          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+            echo "::warning::Secret UPDATE_SIGNING_KEY absent : l'image disque n'est pas signée, la mise à jour automatique la refusera."
+            exit 0
+          fi
+          swift Tools/sign-update.swift "$DMG" > "$DMG.sig"
+          echo "path=$DMG.sig" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: EnhancedFileManager-${{ steps.version.outputs.version }}
-          path: ${{ steps.dmg.outputs.path }}
+          path: |
+            ${{ steps.dmg.outputs.path }}
+            ${{ steps.sig.outputs.path }}
           retention-days: 30
 
       - name: Release GitHub
@@ -88,7 +104,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" \
+          gh release create "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.path }}" ${{ steps.sig.outputs.path }} \
             --title "Enhanced File Manager ${{ steps.version.outputs.version }}" \
             --notes "Application non notarisée : au premier lancement, clic droit sur l'app › Ouvrir, ou \`xattr -dr com.apple.quarantine \"/Applications/Enhanced File Manager.app\"\`."
 
