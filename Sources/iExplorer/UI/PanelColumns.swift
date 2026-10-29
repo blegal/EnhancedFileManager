@@ -134,6 +134,10 @@ extension PanelViewController: NSBrowserDelegate {
             text.append(NSAttributedString(string: "  "))
             text.append(FinderTags.dots(for: item.finderTags, size: 9))
         }
+        // Sans style de paragraphe, un texte avec icône trop long pour la colonne n'est pas tronqué mais effacé.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingMiddle
+        text.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: text.length))
         cell.lineBreakMode = .byTruncatingMiddle
         cell.attributedStringValue = text
     }
