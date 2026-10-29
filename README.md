@@ -13,20 +13,20 @@ open build/iExplorer.app
 
 Nécessite macOS 26+ et Xcode (Swift 6). Seule dépendance : [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) pour le terminal intégré.
 
-Chaque commit poussé incrémente la version (`Tools/bump-version.sh` : 0.2.1 → 0.2.2 et numéro de build + 1 ;
-`Tools/bump-version.sh minor` pour passer à 0.3.0).
+Chaque commit poussé incrémente la version (`Tools/bump-version.sh` : 1.0.0 → 1.0.1 et numéro de build + 1 ;
+`Tools/bump-version.sh minor` → 1.1.0, `major` → 2.0.0).
 
 ## Image disque (DMG) et GitHub Actions
 
 ```bash
-UNIVERSAL=1 VERSION=0.2.0 ./build.sh   # binaire Apple Silicon + Intel, version dans Info.plist
-Tools/make-dmg.sh                      # produit build/iExplorer-0.2.0.dmg
+UNIVERSAL=1 VERSION=1.0.0 ./build.sh   # binaire Apple Silicon + Intel, version dans Info.plist
+Tools/make-dmg.sh                      # produit build/iExplorer-1.0.0.dmg
 ```
 
 Le workflow `.github/workflows/release.yml` construit le DMG à chaque push sur `main` (artefact du run, 30 jours) et le publie dans une release GitHub pour chaque tag `v*` :
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 **Signature.** Sans compte Apple Developer, l'application est signée ad hoc : elle n'est pas notarisée, donc au premier lancement d'un DMG téléchargé, macOS la bloque. Il faut faire clic droit › Ouvrir (ou Réglages Système › Confidentialité et sécurité › Ouvrir quand même), ou retirer l'attribut de quarantaine :
