@@ -150,6 +150,7 @@ enum MainMenu {
             item("Taille par défaut", #selector(Panel.resetZoom(_:)), "0"),
             sortMenu,
             groupMenu,
+            item("Vue à plat", #selector(Panel.toggleFlatView(_:)), "b", [.command, .control]),
             item("Calculer la taille des dossiers sélectionnés", #selector(Panel.computeSelectedFolderSizes(_:)), " ", .option),
             item("Calculer la taille de tous les dossiers", #selector(Panel.computeAllFolderSizes(_:)), " ", [.option, .shift]),
             themeMenu,

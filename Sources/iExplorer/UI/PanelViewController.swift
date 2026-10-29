@@ -84,6 +84,8 @@ final class PanelViewController: NSViewController {
     private var reloadDeferred = false
     /// Regroupement des vues en liste, et lignes de la table qui en découlent (voir Grouping.swift).
     var grouping: PanelGrouping = .none
+    /// Vue à plat du dossier courant (voir FlatView.swift), quittée au changement de dossier.
+    var isFlatView = false
     var groupRows: [GroupRow] = []
     var itemRows: [Int] = []
     var sortDescriptor = NSSortDescriptor(key: "name", ascending: true)
@@ -358,6 +360,7 @@ final class PanelViewController: NSViewController {
             diskUsageView.stop()
         }
         viewMode = mode
+        if mode == .columns, isFlatView { isFlatView = false; reload() }
         applyViewMode()
         if mode == .columns { syncBrowserToCurrentFolder() }
         if grouping != .none, !isShowingSearchResults, mode != .list, mode != .details { items = Self.sorted(items, by: sortDescriptor) }
@@ -546,6 +549,7 @@ final class PanelViewController: NSViewController {
     // MARK: Chargement
 
     private func showCurrentTab() {
+        isFlatView = false
         if isSearching { endSearch(reloadListing: false) }
         // Pas de vue en colonnes sur un serveur SFTP.
         if viewMode == .columns, currentURL.isRemote { viewMode = .details; applyViewMode() }
@@ -581,11 +585,15 @@ final class PanelViewController: NSViewController {
         let showHidden = Preferences.showHiddenFiles
         let wanted = urls ?? selectedURLs
         let descriptor = sortDescriptor
+        let flat = isFlatView && !url.isRemote
         loadGeneration += 1
         let generation = loadGeneration
         DispatchQueue.global(qos: .userInitiated).async {
             // Lecture et tri hors du fil principal.
-            let result = Result { Self.sorted(try FileItem.contents(at: url, showHidden: showHidden), by: descriptor) }
+            let result = Result {
+                Self.sorted(flat ? FileItem.flatContents(of: url, showHidden: showHidden) : try FileItem.contents(at: url, showHidden: showHidden),
+                            by: descriptor)
+            }
             let free = url.isRemote ? url.host.map { "connecté à \($0)" } : Format.freeSpace(at: url)
             DispatchQueue.main.async { [weak self] in
                 guard let self, generation == loadGeneration, url.isSameLocation(as: currentURL) else { return }
@@ -663,6 +671,16 @@ final class PanelViewController: NSViewController {
             text = items.count <= 1 ? "\(items.count) résultat" : "\(items.count) résultats"
             if searchResultsTruncated { text += " (limité à 2 000)" }
             if !selection.isEmpty { text += " — \(selection.count) sélectionné\(selection.count > 1 ? "s" : "")" }
+            infoLabel.stringValue = text
+            return
+        }
+        if isFlatView {
+            text = "Vue à plat : " + (items.count <= 1 ? "\(items.count) fichier" : "\(items.count) fichiers")
+            if items.count >= FileItem.flatLimit { text += " (limité à 10 000)" }
+            if !selection.isEmpty {
+                let bytes = selection.compactMap(\.effectiveSize).reduce(0, +)
+                text += " — \(selection.count) sélectionné\(selection.count > 1 ? "s" : "") (\(Format.size(bytes)))"
+            }
             infoLabel.stringValue = text
             return
         }
@@ -1401,8 +1419,12 @@ final class PanelViewController: NSViewController {
             add("Ouvrir dans le Terminal", #selector(openInTerminal(_:)), "terminal")
             if selection.isEmpty { add("Occupation du disque", #selector(toggleDiskUsage(_:)), "chart.pie") }
         }
-        if selection.isEmpty, viewMode == .list || viewMode == .details {
+        if selection.isEmpty, isFlatView || canShowFlatView {
             menu.addItem(.separator())
+            menu.addItem(flatViewMenuItem())
+        }
+        if selection.isEmpty, viewMode == .list || viewMode == .details {
+            if !(isFlatView || canShowFlatView) { menu.addItem(.separator()) }
             menu.addItem(groupingMenuItem())
         }
         return menu
@@ -1496,6 +1518,9 @@ extension PanelViewController: NSMenuItemValidation {
             return !currentURL.isRemote
         case #selector(increaseIconSize(_:)), #selector(decreaseIconSize(_:)), #selector(resetZoom(_:)):
             return true
+        case #selector(toggleFlatView(_:)):
+            menuItem.state = isFlatView ? .on : .off
+            return isFlatView || canShowFlatView
         case #selector(groupBy(_:)):
             menuItem.state = menuItem.tag == grouping.rawValue ? .on : .off
             return viewMode == .list || viewMode == .details
@@ -1575,10 +1600,10 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
             field.alignment = .left
         default:
             // Dans les résultats de recherche, la colonne indique le dossier de chaque élément.
-            field.stringValue = isShowingSearchResults ? searchLocation(of: item) : (item.isNavigableDirectory ? "Dossier" : item.kind)
+            field.stringValue = isShowingSearchResults || isFlatView ? searchLocation(of: item) : (item.isNavigableDirectory ? "Dossier" : item.kind)
             field.alignment = .left
         }
-        field.toolTip = isShowingSearchResults ? item.url.deletingLastPathComponent().path : nil
+        field.toolTip = isShowingSearchResults || isFlatView ? item.url.deletingLastPathComponent().path : nil
         cell.alphaValue = dimmed ? 0.5 : 1
         return cell
     }
