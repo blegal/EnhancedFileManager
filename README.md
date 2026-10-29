@@ -3,7 +3,7 @@
 **Gestionnaire de fichiers natif pour macOS** : jusqu’à quatre panneaux avec onglets, état Git, terminal intégré,
 serveurs distants, analyse de l’espace disque et thèmes. Écrit en Swift / AppKit, sans Electron.
 
-![iExplorer : deux panneaux, détails et colonnes, état Git](docs/images/hero.png)
+![iExplorer : deux panneaux, dossiers dépliés en liste, colonnes, état Git](docs/images/hero.png)
 
 ## Fonctionnalités
 
