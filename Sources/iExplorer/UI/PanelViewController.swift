@@ -309,6 +309,10 @@ final class PanelViewController: NSViewController {
         tableView.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
         tableView.onZoom = { [weak self] factor in self?.zoom(by: factor) }
         tableView.contextMenuProvider = { [weak self] in self?.contextMenu() }
+        tableView.onSlowClick = { [weak self] row in
+            guard let self, renamingRow == nil, selectionIndexes == [row] else { return }
+            renameSelection(nil)
+        }
     }
 
     private func configureGrid() {

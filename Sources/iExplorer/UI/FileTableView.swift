@@ -7,6 +7,10 @@ final class FileTableView: NSTableView {
     var onZoom: ((CGFloat) -> Void)?
     var keyHandler: ((NSEvent) -> Bool)?
     var contextMenuProvider: (() -> NSMenu?)?
+    /// Clic simple sur le nom de l'élément déjà sélectionné : renommage après un court délai, comme dans le Finder.
+    var onSlowClick: ((Int) -> Void)?
+    private var slowClickTimer: Timer?
+    private var didDrag = false
 
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
@@ -15,17 +19,63 @@ final class FileTableView: NSTableView {
     }
 
     override func keyDown(with event: NSEvent) {
+        cancelSlowClick()
         if keyHandler?(event) == true { return }
         super.keyDown(with: event)
     }
 
+    override func mouseDown(with event: NSEvent) {
+        cancelSlowClick()
+        let point = convert(event.locationInWindow, from: nil)
+        let row = row(at: point)
+        let eligible = event.clickCount == 1
+            && event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty
+            && window?.firstResponder === self
+            && row >= 0 && selectedRowIndexes == [row]
+            && isOnName(point, row: row)
+        didDrag = false
+        super.mouseDown(with: event)
+        guard eligible, !didDrag, selectedRowIndexes == [row] else { return }
+        // Au-delà de l'intervalle du double-clic, pour qu'un double-clic ouvre sans renommer.
+        let delay = max(NSEvent.doubleClickInterval, 0.5) + 0.3
+        slowClickTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            slowClickTimer = nil
+            guard selectedRowIndexes == [row], window?.isKeyWindow == true, window?.firstResponder === self else { return }
+            onSlowClick?(row)
+        }
+    }
+
+    override func draggingSession(_ session: NSDraggingSession, willBeginAt screenPoint: NSPoint) {
+        didDrag = true
+        cancelSlowClick()
+        super.draggingSession(session, willBeginAt: screenPoint)
+    }
+
+    func cancelSlowClick() {
+        slowClickTimer?.invalidate()
+        slowClickTimer = nil
+    }
+
+    /// Le point tombe sur le texte du nom (pas sur l'icône ni dans le vide de la colonne).
+    private func isOnName(_ point: NSPoint, row: Int) -> Bool {
+        let column = column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
+        guard column >= 0, column == self.column(at: point),
+              let field = (view(atColumn: column, row: row, makeIfNecessary: false) as? NSTableCellView)?.textField else { return false }
+        let width = min(field.bounds.width, field.attributedStringValue.size().width + 8)
+        let textRect = field.convert(NSRect(x: 0, y: 0, width: width, height: field.bounds.height), to: self)
+        return textRect.contains(point)
+    }
+
     override func scrollWheel(with event: NSEvent) {
+        cancelSlowClick()
         if let factor = ZoomGesture.factor(for: event) { onZoom?(factor) } else { super.scrollWheel(with: event) }
     }
 
     override func magnify(with event: NSEvent) { onZoom?(1 + event.magnification) }
 
     override func menu(for event: NSEvent) -> NSMenu? {
+        cancelSlowClick()
         let row = row(at: convert(event.locationInWindow, from: nil))
         if row >= 0, !selectedRowIndexes.contains(row) {
             selectRowIndexes([row], byExtendingSelection: false)
