@@ -287,7 +287,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private let inspector = InspectorViewController()
     private let inspectorItem: NSSplitViewItem
     private weak var layoutItem: NSMenuToolbarItem?
-    private weak var viewModeControl: NSSegmentedControl?
+    private weak var viewModeItem: NSMenuToolbarItem?
     private weak var gitButton: NSButton?
     private weak var diskUsageButton: NSButton?
     private weak var syncButton: NSButton?
@@ -448,8 +448,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         window?.representedURL = nil
         sidebar.highlight(panel.currentURL)
         layoutItem?.image = panelsController.layout.icon()
-        // En mode occupation du disque, aucun mode de liste n'est sélectionné ; le bouton dédié est allumé.
-        viewModeControl?.selectedSegment = panel.isShowingDiskUsage ? -1 : panel.viewMode.rawValue
+        viewModeItem?.image = panel.viewMode.icon
         diskUsageButton?.state = panel.isShowingDiskUsage ? .on : .off
         updateInspector(panel)
         terminalController.activePanelDidChange(to: panel.currentURL)
@@ -487,11 +486,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         syncButton?.state = Preferences.syncNavigation ? .on : .off
     }
 
-    @objc func setViewModeFromToolbar(_ sender: NSSegmentedControl) {
-        guard let mode = PanelViewMode(rawValue: sender.selectedSegment) else { return }
-        activePanel.setViewMode(mode)
-    }
-
     /// Bouton à bascule de la barre d'outils : un second clic revient aux fichiers.
     @objc func toggleDiskUsageFromToolbar(_ sender: NSButton) {
         activePanel.toggleDiskUsage(sender)
@@ -512,6 +506,17 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         guard let item = sender as? NSMenuItem, let layout = PanelLayout(rawValue: item.tag) else { return }
         panelsController.applyLayout(layout)
         layoutItem?.image = layout.icon()
+    }
+
+    /// Menu des modes de présentation (barre d'outils) ; les entrées vont au panneau actif.
+    static func viewModeMenu() -> NSMenu {
+        let menu = NSMenu(title: "Présentation")
+        for mode in PanelViewMode.allCases {
+            let item = NSMenuItem(title: mode.title, action: mode.action, keyEquivalent: "\(mode.rawValue + 1)")
+            item.image = mode.icon
+            menu.addItem(item)
+        }
+        return menu
     }
 
     /// Menu des dispositions (barre d'outils et menu Présentation).
@@ -692,16 +697,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.label = "Occupation"
             return item
         case .viewMode:
-            let symbols = ["square.grid.2x2", "list.bullet", "list.bullet.rectangle", "rectangle.split.3x1"]
-            let labels = ["Icônes (⌘1)", "Liste (⌘2)", "Liste détaillée (⌘3)", "Colonnes (⌘4)"]
-            let control = NSSegmentedControl(images: symbols.map { NSImage(systemSymbolName: $0, accessibilityDescription: nil)! },
-                                             trackingMode: .selectOne, target: self, action: #selector(setViewModeFromToolbar(_:)))
-            for (index, label) in labels.enumerated() { control.setToolTip(label, forSegment: index) }
-            control.selectedSegment = activePanel.isShowingDiskUsage ? -1 : activePanel.viewMode.rawValue
-            viewModeControl = control
-            let item = NSToolbarItem(itemIdentifier: identifier)
-            item.view = control
+            // Comme la disposition : un bouton qui montre le mode courant et déroule les autres.
+            let item = NSMenuToolbarItem(itemIdentifier: identifier)
+            item.menu = Self.viewModeMenu()
+            item.image = activePanel.viewMode.icon
             item.label = "Présentation"
+            item.toolTip = "Présentation du panneau : icônes, liste, liste détaillée ou colonnes (⌘1 à ⌘4)"
+            item.showsIndicator = true
+            viewModeItem = item
             return item
         case .layout:
             // Un seul bouton : un clic déroule toutes les dispositions.

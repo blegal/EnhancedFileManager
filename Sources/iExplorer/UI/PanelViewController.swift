@@ -11,8 +11,37 @@ final class TabState {
     init(url: URL) { self.url = url.isRemote ? url.standardized : url.standardizedFileURL }
 }
 
-enum PanelViewMode: Int {
+enum PanelViewMode: Int, CaseIterable {
     case icons, list, details, columns
+
+    var title: String {
+        switch self {
+        case .icons: "Icônes"
+        case .list: "Liste"
+        case .details: "Liste détaillée"
+        case .columns: "Colonnes"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .icons: "square.grid.2x2"
+        case .list: "list.bullet"
+        case .details: "list.bullet.rectangle"
+        case .columns: "rectangle.split.3x1"
+        }
+    }
+
+    var action: Selector {
+        switch self {
+        case .icons: #selector(PanelViewController.showAsIcons(_:))
+        case .list: #selector(PanelViewController.showAsList(_:))
+        case .details: #selector(PanelViewController.showAsDetails(_:))
+        case .columns: #selector(PanelViewController.showAsColumns(_:))
+        }
+    }
+
+    var icon: NSImage? { NSImage(systemSymbolName: symbol, accessibilityDescription: title) }
 }
 
 protocol PanelHost: AnyObject {
