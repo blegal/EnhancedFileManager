@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var windowControllers: [MainWindowController] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppAppearance.apply()
         NSApp.mainMenu = MainMenu.build()
         FileActionStore.shared.installDefaults()
         DocumentTemplates.installDefaults()
@@ -104,6 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         ColorTheme.current = ColorTheme(rawValue: sender.tag) ?? .system
     }
 
+    @objc func setAppearance(_ sender: NSMenuItem) {
+        AppAppearance.current = AppAppearance(rawValue: sender.tag) ?? .automatic
+    }
+
     @objc func setIconTheme(_ sender: NSMenuItem) {
         IconTheme.current = IconTheme(rawValue: sender.tag) ?? .system
     }
@@ -115,6 +120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(setColorTheme(_:)) {
             menuItem.state = menuItem.tag == ColorTheme.current.rawValue ? .on : .off
+        }
+        if menuItem.action == #selector(setAppearance(_:)) {
+            menuItem.state = menuItem.tag == AppAppearance.current.rawValue ? .on : .off
         }
         if menuItem.action == #selector(setIconTheme(_:)) {
             menuItem.state = menuItem.tag == IconTheme.current.rawValue ? .on : .off

@@ -166,7 +166,8 @@ Les onglets SFTP ne sont pas rouverts (ils demanderaient une connexion au lancem
 Bouton « Thème de couleurs » de la barre d’outils (ou Présentation › Thème de couleurs) : Système (macOS) ou
 l’un des 12 thèmes, en trois familles — Uni (Graphite neutre, Ardoise bleutée, Sable chaud, Encre profonde),
 Uni par zones (Établi, Atelier, Nord, Solarisé) et Non uni (Verre liquide, Aurore, Papier grainé, Brume).
-Chaque thème a une variante claire et sombre qui suit l’apparence du système.
+Chaque thème a une variante claire et sombre. En tête du même menu, « Apparence » choisit laquelle :
+Automatique (suit macOS), Claire ou Sombre — on peut ainsi garder un thème clair quand macOS est en mode sombre.
 
 ## Icône
 

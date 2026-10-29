@@ -415,8 +415,17 @@ extension ColorTheme {
 
     static func menu() -> NSMenu {
         let menu = NSMenu(title: "Thème de couleurs")
+        menu.addItem(.sectionHeader(title: "Apparence"))
+        for appearance in AppAppearance.allCases {
+            let item = NSMenuItem(title: appearance.title, action: #selector(AppDelegate.setAppearance(_:)), keyEquivalent: "")
+            item.tag = appearance.rawValue
+            item.image = NSImage(systemSymbolName: appearance.symbol, accessibilityDescription: nil)
+            item.state = appearance == AppAppearance.current ? .on : .off
+            item.toolTip = appearance.toolTip
+            menu.addItem(item)
+        }
         let dark = Theme.isDark(NSApp.effectiveAppearance)
-        var family: String?
+        var family: String? = "Apparence"
         for theme in allCases {
             if theme.family != family {
                 menu.addItem(.separator())
@@ -429,7 +438,52 @@ extension ColorTheme {
             item.state = theme == current ? .on : .off
             menu.addItem(item)
         }
-        if menu.items.first?.isSeparatorItem == true { menu.removeItem(at: 0) }
         return menu
+    }
+}
+
+/// Apparence de l'app : celle de macOS, ou toujours claire / sombre (chaque thème a ses deux variantes).
+enum AppAppearance: Int, CaseIterable {
+    case automatic, light, dark
+
+    static var current: AppAppearance {
+        get { AppAppearance(rawValue: UserDefaults.standard.integer(forKey: "appearance")) ?? .automatic }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "appearance")
+            apply()
+            NotificationCenter.default.post(name: ColorTheme.changed, object: nil)
+        }
+    }
+
+    static func apply() {
+        NSApp.appearance = switch current {
+        case .automatic: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .automatic: "Automatique"
+        case .light: "Claire"
+        case .dark: "Sombre"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .automatic: "circle.lefthalf.filled"
+        case .light: "sun.max"
+        case .dark: "moon"
+        }
+    }
+
+    var toolTip: String {
+        switch self {
+        case .automatic: "Suit le réglage clair / sombre de macOS"
+        case .light: "Variante claire du thème, même si macOS est en mode sombre"
+        case .dark: "Variante sombre du thème, même si macOS est en mode clair"
+        }
     }
 }
