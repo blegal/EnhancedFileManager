@@ -64,7 +64,7 @@ Le script affiche la clé privée, à enregistrer dans le secret `UPDATE_SIGNING
 | Déplacer les éléments copiés ici | ⌥⌘V |
 | Dupliquer | ⌘D |
 | Copier vers / déplacer vers l’autre panneau | F5 / F6 |
-| Renommer | F2 |
+| Renommer | F2, ou clic lent sur le nom de l’élément sélectionné (vues en liste) |
 | Renommer par lot (plusieurs éléments) | F2 ou ⌃⌘R |
 | Placer dans la corbeille | ⌘⌫ |
 | Annuler / Rétablir | ⌘Z / ⇧⌘Z |
@@ -82,6 +82,7 @@ Le script affiche la clé privée, à enregistrer dans le secret `UPDATE_SIGNING
 | Fichiers cachés | ⇧⌘. |
 | Icônes / Liste / Liste détaillée / Colonnes | ⌘1 / ⌘2 / ⌘3 / ⌘4 |
 | Navigation synchronisée des panneaux | ⌃⌘Y |
+| Vue à plat (tous les fichiers des sous-dossiers) | ⌃⌘B |
 | Ajouter aux favoris | ⌃⌘T |
 | Occupation du disque (activer / quitter) | ⌘5 (Échap pour quitter) |
 | Zoom (icônes ou liste) | ⌘ + molette, pincement, ⌘+ / ⌘− |
@@ -287,3 +288,30 @@ pinned = ["all", "clean"]               # en tête, les autres dans « Autres »
 - Règles d’un projet : un dossier `.iexplorer/actions/` à la racine du dépôt, partagé avec Git. Comme il peut
   exécuter n’importe quelle commande, chaque fichier doit être approuvé (et l’être de nouveau s’il change).
 - Les actions s’exécutent sur les dossiers locaux (pas encore sur les panneaux SFTP).
+
+## Nouveau document
+
+Clic droit › Nouveau document (ou Fichier › Nouveau document) : un modèle par fichier du dossier
+`~/Library/Application Support/iExplorer/Modèles`, un sous-menu par sous-dossier, comme le dossier Modèles de
+GNOME ou KDE. Neuf modèles sont fournis au premier lancement (texte, Markdown, Typst, LaTeX, HTML, Makefile,
+scripts shell et Python, CSV) ; on en ajoute en déposant n’importe quel fichier dans ce dossier
+(« Ouvrir le dossier des modèles » en bas du menu). Le fichier créé passe en renommage ; ⌘Z annule.
+
+## Regrouper, vue à plat
+
+- **Regrouper par** (Présentation, ou clic droit sur le fond d’une liste) : sections par type, date de
+  modification (aujourd’hui, hier, 7 et 30 derniers jours, mois, année) ou taille. Le tri s’applique dans
+  chaque groupe. Vues en liste seulement ; mémorisé par panneau.
+- **Vue à plat** (⌃⌘B) : tous les fichiers de l’arborescence dans une seule liste (10 000 au plus), avec leur
+  dossier relatif dans la colonne Type. Tri, filtre et regroupement s’y appliquent ; changer de dossier la quitte.
+
+## Archives
+
+Ouvrir une archive (zip, tar.gz, tar.xz, 7z, rar, jar…) y entre comme dans un dossier : elle est dépliée une fois
+dans `~/Library/Caches/iExplorer/Archives`, le fil d’Ariane montre le chemin de l’archive et ⌘↑ en ressort.
+On peut copier, glisser ou ouvrir son contenu ; les modifications ne sont pas réécrites dans l’archive.
+« Ouvrir avec » garde l’Utilitaire d’archive. Le cache est vidé des archives non rouvertes depuis un jour.
+
+## Partager
+
+Clic droit › Partager (ou Fichier › Partager…) : AirDrop, Mail, Messages, Notes… via le menu de partage de macOS.
