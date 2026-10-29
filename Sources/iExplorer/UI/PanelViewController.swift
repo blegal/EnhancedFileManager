@@ -1358,6 +1358,7 @@ final class PanelViewController: NSViewController {
                 menu.addItem(.separator())
                 menu.addItem(tagsMenuItem())
                 if let actions = customActionsMenuItem() { menu.addItem(actions) }
+                menu.addItem(shareMenuItem(for: selection.map(\.url)))
                 let name = selection.count == 1 ? "« \(selection[0].name) »" : "\(selection.count) éléments"
                 add("Compresser \(name)", #selector(compressSelection(_:)), "archivebox")
                 let formats = NSMenuItem(title: "Compresser au format", action: nil, keyEquivalent: "")
@@ -1448,11 +1449,12 @@ extension PanelViewController: NSMenuItemValidation {
         let localOnly: [Selector?] = [#selector(revealInFinder(_:)), #selector(openInTerminal(_:)), #selector(addToFavorites(_:)),
                                       #selector(runCustomAction(_:)),
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
-                                      #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:))]
+                                      #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:)),
+                                      #selector(shareSelection(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)), #selector(moveToTrash(_:)),
-             #selector(openSelection(_:)), #selector(quickLook(_:)):
+             #selector(openSelection(_:)), #selector(quickLook(_:)), #selector(shareSelection(_:)):
             return hasSelection
         case #selector(compressSelection(_:)):
             return hasSelection
