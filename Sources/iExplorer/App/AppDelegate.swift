@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build()
         FileActionStore.shared.installDefaults()
+        DocumentTemplates.installDefaults()
         // PATH du shell de connexion, lu d'avance pour ne pas ralentir le premier menu contextuel.
         DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.path }
         NotificationCenter.default.addObserver(forName: CustomAction.changed, object: nil, queue: .main) { [weak self] _ in

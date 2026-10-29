@@ -1384,6 +1384,7 @@ final class PanelViewController: NSViewController {
         }
         menu.addItem(.separator())
         if !selection.isEmpty { add("Nouveau dossier", #selector(newFolder(_:)), "folder.badge.plus") }
+        if !currentURL.isRemote { menu.addItem(newDocumentMenuItem()) }
         if !currentURL.isRemote { add("Ajouter aux favoris", #selector(addToFavorites(_:)), "star") }
         if !selection.isEmpty { add("Copier le chemin", #selector(copyPath(_:)), "link") }
         if !currentURL.isRemote {
@@ -1447,7 +1448,7 @@ extension PanelViewController: NSMenuItemValidation {
         let localOnly: [Selector?] = [#selector(revealInFinder(_:)), #selector(openInTerminal(_:)), #selector(addToFavorites(_:)),
                                       #selector(runCustomAction(_:)),
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
-                                      #selector(quickLook(_:)), #selector(showPackageContents(_:))]
+                                      #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)), #selector(moveToTrash(_:)),

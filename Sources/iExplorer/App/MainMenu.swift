@@ -65,6 +65,12 @@ enum MainMenu {
         submenu("Fichier", [
             item("Nouvel onglet", #selector(Panel.newTab(_:)), "t"),
             item("Nouveau dossier", #selector(Panel.newFolder(_:)), "n", [.command, .shift]),
+            {
+                let item = NSMenuItem(title: "Nouveau document", action: nil, keyEquivalent: "")
+                item.submenu = NSMenu(title: "Nouveau document")
+                item.submenu?.delegate = NewDocumentMenuDelegate.shared
+                return item
+            }(),
             separator(),
             item("Ouvrir", #selector(Panel.openSelection(_:)), "o"),
             item("Ouvrir dans un nouvel onglet", #selector(Panel.openInNewTab(_:)), "o", [.command, .shift]),
