@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         ColorTheme.current = ColorTheme(rawValue: sender.tag) ?? .system
     }
 
-    @objc func setAppearance(_ sender: NSMenuItem) {
+    @objc func chooseAppearance(_ sender: NSMenuItem) {
         AppAppearance.current = AppAppearance(rawValue: sender.tag) ?? .automatic
     }
 
@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if menuItem.action == #selector(setColorTheme(_:)) {
             menuItem.state = menuItem.tag == ColorTheme.current.rawValue ? .on : .off
         }
-        if menuItem.action == #selector(setAppearance(_:)) {
+        if menuItem.action == #selector(chooseAppearance(_:)) {
             menuItem.state = menuItem.tag == AppAppearance.current.rawValue ? .on : .off
         }
         if menuItem.action == #selector(setIconTheme(_:)) {

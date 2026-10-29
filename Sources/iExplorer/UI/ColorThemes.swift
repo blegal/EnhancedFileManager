@@ -427,7 +427,7 @@ extension ColorTheme {
         menu.removeAllItems()
         menu.addItem(.sectionHeader(title: "Apparence"))
         for appearance in AppAppearance.allCases {
-            let item = NSMenuItem(title: appearance.title, action: #selector(AppDelegate.setAppearance(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: appearance.title, action: #selector(AppDelegate.chooseAppearance(_:)), keyEquivalent: "")
             item.tag = appearance.rawValue
             item.image = NSImage(systemSymbolName: appearance.symbol, accessibilityDescription: nil)
             item.state = appearance == AppAppearance.current ? .on : .off
