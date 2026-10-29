@@ -135,8 +135,9 @@ dans un panneau › Monter l’image disque) monte l’image avec `hdiutil` et o
 
 ## Thèmes d’icônes
 
-Présentation › Thème d’icônes : Système (macOS) ou l’un des dix thèmes (Matériau coloré, Catppuccin pastel,
-Seti minimal, Trait fin, Duotone, Fluent doux, Badges d’extension, Nord givré, Papirus plat, Néon Dracula).
+Présentation › Thème d’icônes : Système (macOS) ou l’un des treize thèmes (Matériau coloré, Catppuccin pastel,
+Seti minimal, Trait fin, Duotone, Fluent doux, Badges d’extension, Nord givré, Papirus plat, Néon Dracula,
+Bonbons dégradés, Acier doux, Bleu Sur).
 Les dessins sont originaux et vectoriels, inspirés du style des jeux open source cités ; ils suivent
 automatiquement l’apparence claire ou sombre. Les applications et paquets gardent leur icône système.
 
@@ -167,8 +168,10 @@ Les onglets SFTP ne sont pas rouverts (ils demanderaient une connexion au lancem
 ## Thèmes de couleurs
 
 Bouton « Thème de couleurs » de la barre d’outils (ou Présentation › Thème de couleurs) : Système (macOS) ou
-l’un des 12 thèmes, en trois familles — Uni (Graphite neutre, Ardoise bleutée, Sable chaud, Encre profonde),
-Uni par zones (Établi, Atelier, Nord, Solarisé) et Non uni (Verre liquide, Aurore, Papier grainé, Brume).
+l’un des 20 thèmes, en quatre familles — Uni (Graphite neutre, Ardoise bleutée, Sable chaud, Encre profonde),
+Uni par zones (Établi, Atelier, Nord, Solarisé), Non uni (Verre liquide, Aurore, Papier grainé, Brume) et
+Bureaux libres, inspirés de thèmes GTK / GNOME (Crépuscule, Fumée, Humain, Orchis, WhiteSur, Monochrome, Bonbon,
+Flat Remix violet). En clair, Monochrome et Bonbon gardent une barre latérale sombre.
 Chaque thème a une variante claire et sombre. En tête du même menu, « Apparence » choisit laquelle :
 Automatique (suit macOS), Claire ou Sombre — on peut ainsi garder un thème clair quand macOS est en mode sombre.
 

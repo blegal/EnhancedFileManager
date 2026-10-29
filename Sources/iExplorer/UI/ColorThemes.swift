@@ -28,6 +28,8 @@ struct ThemeVariant {
     var terminalText: String
     var terminalAccent: String? = nil
     var folder: String? = nil
+    /// Barre latérale sombre même en apparence claire (elle prend alors les couleurs de la variante sombre).
+    var darkSidebar = false
 }
 
 enum ColorTheme: Int, CaseIterable {
@@ -35,6 +37,7 @@ enum ColorTheme: Int, CaseIterable {
     case graphite, slate, sand, ink
     case workbench, atelier, nord, solarized
     case liquidGlass, aurora, grainedPaper, mist
+    case dusk, smoke, human, orchis, whiteSur, monochrome, candy, flatRemix
 
     static let changed = Notification.Name("ColorThemeChanged")
 
@@ -61,6 +64,14 @@ enum ColorTheme: Int, CaseIterable {
         case .aurora: "Aurore"
         case .grainedPaper: "Papier grainé"
         case .mist: "Brume"
+        case .dusk: "Crépuscule"
+        case .smoke: "Fumée"
+        case .human: "Humain"
+        case .orchis: "Orchis"
+        case .whiteSur: "WhiteSur"
+        case .monochrome: "Monochrome"
+        case .candy: "Bonbon"
+        case .flatRemix: "Flat Remix violet"
         }
     }
 
@@ -71,6 +82,7 @@ enum ColorTheme: Int, CaseIterable {
         case .graphite, .slate, .sand, .ink: "Uni"
         case .workbench, .atelier, .nord, .solarized: "Uni par zones"
         case .liquidGlass, .aurora, .grainedPaper, .mist: "Non uni"
+        case .dusk, .smoke, .human, .orchis, .whiteSur, .monochrome, .candy, .flatRemix: "Bureaux libres"
         }
     }
 
@@ -164,6 +176,64 @@ enum ColorTheme: Int, CaseIterable {
                          panel: "#0E0F1199", inspector: "#FFFFFF08", text: "#EDE9EA", secondaryText: "#8C878B", accent: "#E28AA0", selectedText: "#2A0F17",
                          inactiveSelection: "#FFFFFF1A", sidebarSelection: "#FFFFFF1C", terminal: "#08090BCC", terminalText: "#CFC7C9",
                          terminalAccent: "#F2A7B8", folder: "#8A6F78")),
+        // Bureaux libres : inspirés de thèmes GTK / GNOME (Nordic, GNOME Shell, Human d'Ubuntu, Orchis, WhiteSur,
+        // Graphite, Candy, Flat Remix). Couleurs reprises à l'œil, sans leurs images.
+        .dusk: (
+            ThemeVariant(window: .color("#E6EAF0"), toolbar: "#EDF0F4", sidebar: .color("#DFE4EB"), panel: "#F5F7FA", header: "#EEF1F5", inspector: "#EEF1F5",
+                         text: "#2A303B", secondaryText: "#7B8494", accent: "#4F6F9E", inactiveSelection: "#DCE2EA", sidebarSelection: "#2A303B14",
+                         terminal: "#2F3542", terminalText: "#D5DCE6", terminalAccent: "#A9C1E6", folder: "#7F98BA"),
+            ThemeVariant(window: .color("#2F3542"), toolbar: "#333A47", sidebar: .color("#2C323E"), panel: "#353B48", header: "#323845", inspector: "#323845",
+                         text: "#E3E8F0", secondaryText: "#8F99AB", accent: "#8AA9D6", selectedText: "#1A2230", inactiveSelection: "#444C5B",
+                         sidebarSelection: "#FFFFFF1A", terminal: "#262B35", terminalText: "#C8D0DC", terminalAccent: "#A9C1E6", folder: "#8EA5C4")),
+        .smoke: (
+            ThemeVariant(window: .glass, toolbar: "#F4F4F4B3", sidebar: .color("#EDEDED99"), panel: "#FAFAFAE6", inspector: "#F4F4F4CC",
+                         text: "#1E1E1E", secondaryText: "#6E6E6E", accent: "#3C3C3C", inactiveSelection: "#0000001A", sidebarSelection: "#00000014",
+                         terminal: "#1E1E1EE6", terminalText: "#E0E0E0", terminalAccent: "#FFFFFF", folder: "#8A8A8A"),
+            ThemeVariant(window: .glass, toolbar: "#1C1C1CB3", sidebar: .color("#141414A6"), panel: "#202020E6", inspector: "#1C1C1CCC",
+                         text: "#EDEDED", secondaryText: "#9A9A9A", accent: "#C8C8C8", selectedText: "#151515", inactiveSelection: "#FFFFFF1F",
+                         sidebarSelection: "#FFFFFF24", terminal: "#0E0E0EE6", terminalText: "#D0D0D0", terminalAccent: "#FFFFFF", folder: "#9E9E9E")),
+        .human: (
+            ThemeVariant(window: .color("#E3D9CC"), toolbar: "#DED2C2", sidebar: .gradient(180, [("#EDE5DA", 0), ("#E2D6C6", 1)]), panel: "#F6F1EA",
+                         header: "#EDE5DA", inspector: "#EFE8DE", text: "#3C3027", secondaryText: "#8E7F70", accent: "#9C5E3B", inactiveSelection: "#E2D6C6",
+                         sidebarSelection: "#9C5E3B26", terminal: "#2E2620", terminalText: "#E8DCCB", terminalAccent: "#E0A16E", folder: "#B98B63"),
+            ThemeVariant(window: .color("#2A2420"), toolbar: "#2F2823", sidebar: .color("#26201C"), panel: "#1F1A17", header: "#29231F", inspector: "#25201C",
+                         text: "#EEE3D6", secondaryText: "#A39282", accent: "#D08B5B", selectedText: "#24150B", inactiveSelection: "#3D342D",
+                         sidebarSelection: "#FFFFFF1A", terminal: "#171310", terminalText: "#DCCFBF", terminalAccent: "#E0A16E", folder: "#B07D55")),
+        .orchis: (
+            ThemeVariant(window: .color("#F2F2F2"), toolbar: "#F7F7F7", sidebar: .color("#F0F0F0"), panel: "#FFFFFF", header: "#FAFAFA", inspector: "#FAFAFA",
+                         text: "#212121", secondaryText: "#7A7A7A", accent: "#1A73E8", inactiveSelection: "#E6E6E6", sidebarSelection: "#1A73E81F",
+                         terminal: "#2A2A2A", terminalText: "#DADADA", terminalAccent: "#5FA8FF", folder: "#3C84F7"),
+            ThemeVariant(window: .color("#242424"), toolbar: "#2A2A2A", sidebar: .color("#2C2C2C"), panel: "#212121", header: "#262626", inspector: "#262626",
+                         text: "#F2F2F2", secondaryText: "#9E9E9E", accent: "#3C84F7", inactiveSelection: "#3A3A3A", sidebarSelection: "#FFFFFF1A",
+                         terminal: "#1A1A1A", terminalText: "#D6D6D6", terminalAccent: "#5FA8FF", folder: "#3C84F7")),
+        .whiteSur: (
+            ThemeVariant(window: .color("#F5F5F5"), toolbar: "#F5F5F5", sidebar: .color("#EBDFE3"), panel: "#FFFFFF", header: "#FFFFFF", inspector: "#FAFAFA",
+                         text: "#242424", secondaryText: "#8A8A8E", accent: "#0860F2", inactiveSelection: "#E5E5EA", sidebarSelection: "#00000017",
+                         terminal: "#252525", terminalText: "#DDDDDD", terminalAccent: "#5AA9FF", folder: "#3FA2F5"),
+            ThemeVariant(window: .color("#2A2A2C"), toolbar: "#2E2E30", sidebar: .color("#2B2730"), panel: "#232325", header: "#28282A", inspector: "#262628",
+                         text: "#F0F0F2", secondaryText: "#8E8E93", accent: "#2E8AF6", inactiveSelection: "#3A3A3C", sidebarSelection: "#FFFFFF1C",
+                         terminal: "#1A1A1C", terminalText: "#D0D0D4", terminalAccent: "#5AA9FF", folder: "#3FA2F5")),
+        .monochrome: (
+            ThemeVariant(window: .color("#F2F2F2"), toolbar: "#FAFAFA", sidebar: .color("#F0F0F0"), panel: "#FFFFFF", header: "#FFFFFF", inspector: "#FAFAFA",
+                         text: "#1A1A1A", secondaryText: "#7A7A7A", accent: "#2B2B2B", inactiveSelection: "#E4E4E4", sidebarSelection: "#0000001A",
+                         terminal: "#FFFFFF", terminalText: "#1A1A1A", terminalAccent: "#2B2B2B", folder: "#4A4A4A", darkSidebar: true),
+            ThemeVariant(window: .color("#242424"), toolbar: "#2B2B2B", sidebar: .color("#1A1A1A"), panel: "#2A2A2A", header: "#262626", inspector: "#262626",
+                         text: "#EDEDED", secondaryText: "#8F8F8F", accent: "#E6E6E6", selectedText: "#1A1A1A", inactiveSelection: "#3D3D3D",
+                         sidebarSelection: "#FFFFFF2E", terminal: "#1A1A1A", terminalText: "#D8D8D8", terminalAccent: "#FFFFFF", folder: "#9A9A9A")),
+        .candy: (
+            ThemeVariant(window: .color("#F7F6F0"), toolbar: "#F7F6F0", sidebar: .color("#EFEDE5"), panel: "#FAF9F4", header: "#F5F4EE", inspector: "#F5F4EE",
+                         text: "#2A2A33", secondaryText: "#8C8A82", accent: "#F0533A", inactiveSelection: "#ECE9DF", sidebarSelection: "#F0533A26",
+                         terminal: "#22222C", terminalText: "#E6E4DC", terminalAccent: "#FF8A6B", folder: "#F0533A", darkSidebar: true),
+            ThemeVariant(window: .color("#1F1F28"), toolbar: "#232330", sidebar: .color("#1C1C24"), panel: "#26262F", header: "#23232C", inspector: "#23232C",
+                         text: "#F2F1EC", secondaryText: "#8F8E99", accent: "#FF6A4D", inactiveSelection: "#3A3A46", sidebarSelection: "#FF6A4D33",
+                         terminal: "#16161D", terminalText: "#DAD8E0", terminalAccent: "#FF8A6B", folder: "#FF6A4D")),
+        .flatRemix: (
+            ThemeVariant(window: .color("#F1EFF7"), toolbar: "#F6F4FB", sidebar: .color("#EAE6F4"), panel: "#FFFFFF", header: "#F8F7FC", inspector: "#F8F7FC",
+                         text: "#221A3A", secondaryText: "#7E7697", accent: "#13A89A", inactiveSelection: "#E4E0EF", sidebarSelection: "#13A89A24",
+                         terminal: "#2A2048", terminalText: "#E0D9F2", terminalAccent: "#3BE3D4", folder: "#7B5CE0"),
+            ThemeVariant(window: .color("#221A3A"), toolbar: "#271E42", sidebar: .color("#1E1734"), panel: "#2A2048", header: "#261D41", inspector: "#261D41",
+                         text: "#F0ECFA", secondaryText: "#A096BF", accent: "#2EDCC8", selectedText: "#0E2B28", inactiveSelection: "#3B3060",
+                         sidebarSelection: "#FFFFFF1A", terminal: "#1A1430", terminalText: "#D8D0EE", terminalAccent: "#3BE3D4", folder: "#9D7DF2")),
     ]
 }
 

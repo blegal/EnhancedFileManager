@@ -69,9 +69,11 @@ enum IconKind: Hashable {
 }
 
 /// Les thèmes d'icônes. Dessins vectoriels originaux inspirés des jeux open source cités
-/// (Material Icon Theme, Catppuccin, Seti, Lucide, Phosphor, Fluent, vscode-icons, Tabler/Nord, Papirus, Dracula).
+/// (Material Icon Theme, Catppuccin, Seti, Lucide, Phosphor, Fluent, vscode-icons, Tabler/Nord, Papirus, Dracula,
+/// Candy Icons, Nordic, WhiteSur).
 enum IconTheme: Int, CaseIterable {
     case system, material, catppuccin, seti, thin, duotone, fluent, badges, nord, papirus, dracula
+    case candy, steel, sur
 
     static let changed = Notification.Name("IconThemeChanged")
 
@@ -97,6 +99,9 @@ enum IconTheme: Int, CaseIterable {
         case .nord: "Nord givré"
         case .papirus: "Papirus plat"
         case .dracula: "Néon Dracula"
+        case .candy: "Bonbons dégradés"
+        case .steel: "Acier doux"
+        case .sur: "Bleu Sur"
         }
     }
 
@@ -347,6 +352,52 @@ private enum SVG {
             guard d else { return shape }
             // Lueur néon : copie floutée sous le tracé (feMerge n'est pas géré par CoreSVG).
             return ##"<defs><filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1"/></filter></defs><g filter="url(#glow)" opacity=".85">\##(shape)</g>\##(shape)"##
+
+        case .candy:
+            // Dossiers en dégradés acidulés, pictogramme blanc (inspiré de Candy Icons).
+            let colors: [IconKind: (String, String)] = [
+                .folder: ("#8CDCD3", "#3FB8AC"), .documents: ("#C77DFF", "#8E3BDB"), .images: ("#FFB347", "#FF6A2B"),
+                .downloads: ("#FF7EC7", "#E0409C"), .desktop: ("#E2B6F0", "#B37BD3"), .music: ("#A8E66B", "#3FBF6E"),
+                .movies: ("#5EDCF5", "#1E8FEF"), .applications: ("#FF8A80", "#F0435A"),
+                .swift: ("#FFB347", "#FF5E2B"), .code: ("#C77DFF", "#8E3BDB"), .pdf: ("#FF8A80", "#E8344E"), .image: ("#FFB347", "#FF6A2B"),
+                .archive: ("#FFE074", "#F2A922"), .markdown: ("#5EDCF5", "#1E8FEF"), .text: ("#B8C2CC", "#7D8A97"),
+                .audio: ("#A8E66B", "#3FBF6E"), .video: ("#5EDCF5", "#1E8FEF"), .generic: ("#C9D1D9", "#8B97A3"),
+            ]
+            let (light, deep) = colors[kind] ?? ("#C9D1D9", "#8B97A3")
+            if kind.isFolder {
+                return "<defs>" + gradient("front", light, deep, diagonal: true) + "</defs>"
+                    + ##"<path d="\##(folder)" fill="\##(deep)"/><path d="\##(folderFront)" fill="url(#front)"/>"##
+                    + glyph(kind.glyph, "#fff", 7.2, 10.4, 0.4, 3.4)
+            }
+            return "<defs>" + gradient("paper", light, deep, diagonal: true) + "</defs>"
+                + ##"<path d="\##(page)" fill="url(#paper)"/><path d="\##(pageFold)z" fill="#fff" opacity=".4"/>"##
+                + glyph(kind.glyph, "#fff", 6.9, 9.6, 0.42, 3)
+
+        case .steel:
+            // Dossiers plats bleu acier, pictogramme ton sur ton (inspiré de Nordic).
+            let back = d ? "#7F96B6" : "#8AA2C2"
+            let front = d ? "#93AACB" : "#A3B9D6"
+            let ink = d ? "#5F7697" : "#6A83A6"
+            if kind.isFolder {
+                return ##"<path d="\##(folder)" fill="\##(back)"/><path d="\##(folderFront)" fill="\##(front)"/>"## + glyph(kind.glyph, ink, 7.2, 10.4, 0.4, 3)
+            }
+            let accents: [IconKind: String] = [.swift: "#C98A6B", .code: "#9C88B8", .pdf: "#BF6F78", .image: "#7FA88E", .archive: "#C2A15E",
+                                               .markdown: ink, .audio: "#B888A8", .video: "#C98A6B"]
+            return ##"<path d="\##(page)" fill="\##(d ? "#C7D3E3" : "#DCE4EF")"/><path d="\##(pageFold)z" fill="\##(front)"/>"##
+                + glyph(kind.glyph, accents[kind] ?? ink, 6.9, 9.6, 0.42, 2.6)
+
+        case .sur:
+            // Dossiers bleu vif à onglet, pictogramme blanc (inspiré de WhiteSur / Orchis).
+            if kind.isFolder {
+                return "<defs>" + gradient("front", "#62B6FA", "#3A8EEA") + "</defs>"
+                    + ##"<path d="\##(folder)" fill="#2C78D2"/><path d="\##(folderFront)" fill="url(#front)"/>"##
+                    + glyph(kind.glyph, "#fff", 7.2, 10.4, 0.4, 3)
+            }
+            let colors: [IconKind: String] = [.swift: "#F2742E", .code: "#7B61FF", .pdf: "#E5484D", .image: "#30A46C", .archive: "#B08A3E",
+                                              .markdown: "#3A8EEA", .text: "#6B7785", .audio: "#E5487F", .video: "#F2742E", .generic: "#8A96A3"]
+            let edge = d ? "#9AA4AF" : "#C9D0D8"
+            return ##"<path d="\##(page)" fill="#FFFFFF" stroke="\##(edge)" stroke-width=".8"/><path d="\##(pageFold)" fill="#EEF2F6" stroke="\##(edge)" stroke-width=".8"/>"##
+                + glyph(kind.glyph, colors[kind] ?? "#8A96A3", 6.9, 9.6, 0.42, 2.6)
         }
     }
 }

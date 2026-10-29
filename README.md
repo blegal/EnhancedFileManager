@@ -25,8 +25,8 @@ serveurs distants, analyse de l’espace disque et thèmes. Écrit en Swift / Ap
 - Serveurs SFTP, SMB, AFP, NFS et WebDAV.
 
 **Apparence**
-- 12 thèmes de couleurs, chacun en clair et en sombre ; apparence automatique, claire ou sombre.
-- 10 thèmes d’icônes de fichiers.
+- 20 thèmes de couleurs, chacun en clair et en sombre ; apparence automatique, claire ou sombre.
+- 13 thèmes d’icônes de fichiers.
 
 **Espace disque**
 - Occupation du dossier courant (⌘5) en 7 graphiques : cartes, soleil, histogramme, liste façon Baobab.

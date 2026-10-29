@@ -81,6 +81,16 @@ final class SidebarViewController: NSViewController {
         view = root
     }
 
+    private var appearanceObservation: NSKeyValueObservation?
+
+    /// Barre latérale sombre d'un thème clair (Monochrome, Bonbon) : la vue passe en apparence sombre.
+    private func applySidebarAppearance() {
+        let dark = Theme.isDark(NSApp.effectiveAppearance)
+        let wanted = !dark && ColorTheme.current.variant(dark: false)?.darkSidebar == true
+        let appearance = wanted ? NSAppearance(named: .darkAqua) : nil
+        if view.appearance?.name != appearance?.name { view.appearance = appearance }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         let workspace = NSWorkspace.shared.notificationCenter
@@ -89,7 +99,14 @@ final class SidebarViewController: NSViewController {
         }
         NotificationCenter.default.addObserver(forName: Preferences.favoritesChanged, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
         NotificationCenter.default.addObserver(forName: SFTPManager.sessionsChanged, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
-        NotificationCenter.default.addObserver(forName: ColorTheme.changed, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
+        NotificationCenter.default.addObserver(forName: ColorTheme.changed, object: nil, queue: .main) { [weak self] _ in
+            self?.applySidebarAppearance()
+            self?.rebuild()
+        }
+        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.applySidebarAppearance() }
+        }
+        applySidebarAppearance()
         // Les favoris du Finder peuvent changer pendant que l'app est en arrière-plan.
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
         rebuild()
