@@ -65,6 +65,9 @@ final class FileActionsEditorController: NSViewController, NSTableViewDataSource
         removeButton.action = #selector(removeRule)
         let more = NSButton(image: NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: "Plus")!, target: self, action: #selector(showMoreMenu(_:)))
         for button in [add, removeButton, more] { button.bezelStyle = .accessoryBarAction }
+        add.toolTip = "Nouvelle règle"
+        removeButton.toolTip = "Supprimer la règle sélectionnée"
+        more.toolTip = "Dossier des règles, règles fournies, outils installés"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         let listButtons = NSStackView(views: [add, removeButton, spacer, more])

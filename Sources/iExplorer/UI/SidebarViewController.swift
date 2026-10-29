@@ -510,6 +510,7 @@ private final class SidebarCell: NSTableCellView {
             trailing.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             trailing.centerYAnchor.constraint(equalTo: centerYAnchor, constant: offset),
         ])
+        if let url = item.url { toolTip = url.isFileURL ? url.path : url.absoluteString }
         if let capacity = item.capacity {
             let gauge = CapacityGauge(used: Double(capacity.total - capacity.available) / Double(capacity.total))
             gauge.translatesAutoresizingMaskIntoConstraints = false
@@ -521,7 +522,7 @@ private final class SidebarCell: NSTableCellView {
                 gauge.heightAnchor.constraint(equalToConstant: 4),
             ])
             let used = Double(capacity.total - capacity.available) / Double(capacity.total)
-            toolTip = "\(Format.size(capacity.available)) disponibles sur \(Format.size(capacity.total)) (\(Int((used * 100).rounded())) % utilisés)"
+            toolTip = (toolTip.map { $0 + "\n" } ?? "") + "\(Format.size(capacity.available)) disponibles sur \(Format.size(capacity.total)) (\(Int((used * 100).rounded())) % utilisés)"
         }
     }
 

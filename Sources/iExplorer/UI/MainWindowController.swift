@@ -620,10 +620,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        func button(_ label: String, _ symbol: String, _ action: Selector, navigational: Bool = false) -> NSToolbarItem {
+        func button(_ label: String, _ symbol: String, _ action: Selector, tip: String? = nil, navigational: Bool = false) -> NSToolbarItem {
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.label = label
-            item.toolTip = label
+            item.toolTip = tip ?? label
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
             item.action = action
             item.isBordered = true
@@ -636,7 +636,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             let isBack = identifier == .back
             let item = NSMenuToolbarItem(itemIdentifier: identifier)
             item.label = isBack ? "Précédent" : "Suivant"
-            item.toolTip = (isBack ? "Précédent" : "Suivant") + " — maintenir pour l’historique"
+            item.toolTip = (isBack ? "Précédent (⌘[)" : "Suivant (⌘])") + " — maintenir le clic pour tout l’historique de l’onglet"
             item.image = NSImage(systemSymbolName: isBack ? "chevron.left" : "chevron.right", accessibilityDescription: item.label)
             item.action = isBack ? #selector(PanelViewController.goBack(_:)) : #selector(PanelViewController.goForward(_:))
             item.showsIndicator = false
@@ -645,12 +645,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             menu.delegate = isBack ? backMenu : forwardMenu
             item.menu = menu
             return item
-        case .newFolder: return button("Nouveau dossier", "folder.badge.plus", #selector(PanelViewController.newFolder(_:)))
-        case .quickLook: return button("Coup d’œil", "eye", #selector(PanelViewController.quickLook(_:)))
-        case .trash: return button("Corbeille", "trash", #selector(PanelViewController.moveToTrash(_:)))
-        case .hidden: return button("Fichiers cachés", "eye.slash", #selector(AppDelegate.toggleHiddenFiles(_:)))
-        case .connect: return button("Se connecter au serveur", "network", #selector(connectToServer(_:)))
-        case .inspector: return button("Inspecteur", "sidebar.right", #selector(toggleInspectorPane(_:)))
+        case .newFolder: return button("Nouveau dossier", "folder.badge.plus", #selector(PanelViewController.newFolder(_:)), tip: "Nouveau dossier (⇧⌘N)")
+        case .quickLook: return button("Coup d’œil", "eye", #selector(PanelViewController.quickLook(_:)), tip: "Coup d’œil sur la sélection (Espace ou ⌘Y)")
+        case .trash: return button("Corbeille", "trash", #selector(PanelViewController.moveToTrash(_:)), tip: "Placer la sélection dans la corbeille (⌘⌫)")
+        case .hidden: return button("Fichiers cachés", "eye.slash", #selector(AppDelegate.toggleHiddenFiles(_:)), tip: "Afficher ou masquer les fichiers cachés (⇧⌘.)")
+        case .connect: return button("Se connecter au serveur", "network", #selector(connectToServer(_:)), tip: "Se connecter à un serveur SFTP, SMB, WebDAV… (⌘K)")
+        case .inspector: return button("Inspecteur", "sidebar.right", #selector(toggleInspectorPane(_:)), tip: "Afficher ou masquer l’inspecteur (⌥⌘I)")
         case .updates:
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = UpdateStatusButton()
@@ -712,7 +712,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.menu = Self.layoutMenu()
             item.image = panelsController.layout.icon()
             item.label = "Disposition"
-            item.toolTip = "Disposition des panneaux"
+            item.toolTip = "Disposition des panneaux : 1 à 4 panneaux (⌥⌘1…)"
             item.showsIndicator = true
             layoutItem = item
             return item
@@ -722,7 +722,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.image = NSImage(systemSymbolName: "swatchpalette", accessibilityDescription: "Thème de couleurs")
                 ?? NSImage(systemSymbolName: "circle.lefthalf.filled", accessibilityDescription: "Thème de couleurs")
             item.label = "Thème de couleurs"
-            item.toolTip = "Thème de couleurs"
+            item.toolTip = "Thème de couleurs et apparence claire / sombre"
             item.showsIndicator = true
             return item
         case .iconTheme:
@@ -730,7 +730,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.menu = Self.iconThemeMenu()
             item.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: "Thème d’icônes")
             item.label = "Thème d’icônes"
-            item.toolTip = "Thème d’icônes"
+            item.toolTip = "Thème des icônes de fichiers et de dossiers"
             item.showsIndicator = true
             return item
         default:

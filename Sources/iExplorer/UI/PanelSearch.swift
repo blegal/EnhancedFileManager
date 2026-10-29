@@ -34,6 +34,7 @@ final class PanelSearchBar: NSView, NSSearchFieldDelegate {
     override init(frame: NSRect) {
         super.init(frame: frame)
         field.placeholderString = "Rechercher (ex. rapport, *.pdf)"
+        field.toolTip = "Nom ou motif : * remplace plusieurs caractères, ? un seul"
         field.controlSize = .small
         field.font = .systemFont(ofSize: 12)
         field.delegate = self
@@ -54,6 +55,7 @@ final class PanelSearchBar: NSView, NSSearchFieldDelegate {
                              target: self, action: #selector(closeSearch))
         close.isBordered = false
         close.contentTintColor = .tertiaryLabelColor
+        close.toolTip = "Fermer la recherche (Échap)"
 
         let stack = NSStackView(views: [field, scopeControl, spinner, close])
         stack.spacing = 8

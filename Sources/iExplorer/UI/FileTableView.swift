@@ -227,6 +227,7 @@ private final class TabItemView: NSView {
     init(title: String) {
         label = NSTextField(labelWithString: title)
         closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Fermer l’onglet")!, target: nil, action: nil)
+        closeButton.toolTip = "Fermer l’onglet (⌘W)"
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 6
@@ -417,6 +418,7 @@ final class BreadcrumbView: NSView {
         let button = NSButton(title: title ?? "", target: self, action: #selector(clicked(_:)))
         button.isBordered = false
         button.identifier = NSUserInterfaceItemIdentifier(url.isRemote ? url.absoluteString : url.path)
+        button.toolTip = url.isRemote ? url.absoluteString : url.path
         if let symbol {
             button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: Self.displayName(url))
             button.symbolConfiguration = .init(pointSize: 14, weight: .regular)

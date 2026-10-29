@@ -211,6 +211,7 @@ final class ConnectionPanelController: NSViewController {
             button.isBordered = false
             button.contentTintColor = color
             button.tag = index
+            button.toolTip = "Couleur de la connexion dans la barre latérale"
             button.symbolConfiguration = .init(pointSize: 15, weight: .regular)
             colorButtons.append(button)
             colors.addArrangedSubview(button)

@@ -204,6 +204,8 @@ final class CustomActionsController: NSViewController, NSTableViewDataSource, NS
         let add = NSButton(image: NSImage(systemSymbolName: "plus", accessibilityDescription: "Ajouter")!, target: self, action: #selector(addAction))
         let remove = NSButton(image: NSImage(systemSymbolName: "minus", accessibilityDescription: "Supprimer")!, target: self, action: #selector(removeAction))
         for button in [add, remove] { button.bezelStyle = .accessoryBarAction }
+        add.toolTip = "Nouvelle action"
+        remove.toolTip = "Supprimer l’action sélectionnée"
         let listButtons = NSStackView(views: [add, remove])
         let list = NSStackView(views: [scroll, listButtons])
         list.orientation = .vertical
