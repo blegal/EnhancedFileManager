@@ -386,9 +386,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         NotificationCenter.default.addObserver(forName: IconTheme.changed, object: nil, queue: .main) { [weak self] _ in
             self?.updateIconThemeMenu()
         }
-        NotificationCenter.default.addObserver(forName: ColorTheme.changed, object: nil, queue: .main) { [weak self] _ in
-            (self?.window?.toolbar?.items.first { $0.itemIdentifier == .colorTheme } as? NSMenuToolbarItem)?.menu = ColorTheme.menu()
-        }
         activePanelChanged(activePanel)
         window.initialFirstResponder = activePanel.tableView
         NotificationCenter.default.addObserver(forName: GitService.enabledChanged, object: nil, queue: .main) { [weak self] _ in

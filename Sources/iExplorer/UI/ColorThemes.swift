@@ -328,8 +328,9 @@ final class ThemeBackgroundView: NSView {
         var generator = SystemRandomNumberGenerator()
         for y in 0..<size {
             for x in 0..<size {
-                let value = Int.random(in: 0...255, using: &generator)
-                var pixel = [value, Int.random(in: 0...14, using: &generator)]
+                // Valeurs prémultipliées : le gris ne doit pas dépasser l'opacité.
+                let alpha = Int.random(in: 0...14, using: &generator)
+                var pixel = [Int.random(in: 0...255, using: &generator) * alpha / 255, alpha]
                 rep.setPixel(&pixel, atX: x, y: y)
             }
         }
@@ -413,8 +414,17 @@ extension ColorTheme {
         return image
     }
 
+    /// Menu des thèmes, rempli à chaque ouverture : on ne le remplace jamais pendant qu'il est affiché
+    /// (le changement de thème ou d'apparence arrive alors que le menu est encore ouvert).
     static func menu() -> NSMenu {
         let menu = NSMenu(title: "Thème de couleurs")
+        menu.delegate = ColorThemeMenuDelegate.shared
+        fill(menu)
+        return menu
+    }
+
+    fileprivate static func fill(_ menu: NSMenu) {
+        menu.removeAllItems()
         menu.addItem(.sectionHeader(title: "Apparence"))
         for appearance in AppAppearance.allCases {
             let item = NSMenuItem(title: appearance.title, action: #selector(AppDelegate.setAppearance(_:)), keyEquivalent: "")
@@ -438,8 +448,13 @@ extension ColorTheme {
             item.state = theme == current ? .on : .off
             menu.addItem(item)
         }
-        return menu
     }
+}
+
+final class ColorThemeMenuDelegate: NSObject, NSMenuDelegate {
+    static let shared = ColorThemeMenuDelegate()
+
+    func menuNeedsUpdate(_ menu: NSMenu) { ColorTheme.fill(menu) }
 }
 
 /// Apparence de l'app : celle de macOS, ou toujours claire / sombre (chaque thème a ses deux variantes).
