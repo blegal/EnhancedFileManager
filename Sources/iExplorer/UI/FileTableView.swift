@@ -366,6 +366,14 @@ final class BreadcrumbView: NSView {
         let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
         var components: [URL] = []
         var cursor = url.standardizedFileURL
+        // Dans une archive dépliée, on montre le chemin de l'archive plutôt que celui du cache.
+        var target: (URL) -> URL = { $0 }
+        if let (archive, root) = ArchiveBrowser.archive(containing: url) {
+            let archivePath = archive.standardizedFileURL.path
+            let rootPath = root.standardizedFileURL.path
+            cursor = URL(fileURLWithPath: archivePath + cursor.path.dropFirst(rootPath.count))
+            target = { $0.path.hasPrefix(archivePath) ? URL(fileURLWithPath: rootPath + $0.path.dropFirst(archivePath.count)) : $0 }
+        }
         let rootURL: URL
         let rootSymbol: String
         if url.isRemote, let endpoint = SFTPEndpoint(url: url) {
@@ -396,7 +404,7 @@ final class BreadcrumbView: NSView {
             chevron.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
             chevron.contentTintColor = .tertiaryLabelColor
             stack.addArrangedSubview(chevron)
-            let button = makeButton(title: Self.displayName(component), symbol: nil, url: component, color: textColor)
+            let button = makeButton(title: Self.displayName(component), symbol: nil, url: target(component), color: textColor)
             stack.addArrangedSubview(button)
             // Les éléments les plus anciens disparaissent en premier si la place manque.
             let priority = NSStackView.VisibilityPriority(rawValue: Float(500 + index * 10))

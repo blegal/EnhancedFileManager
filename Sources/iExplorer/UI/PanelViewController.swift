@@ -554,7 +554,7 @@ final class PanelViewController: NSViewController {
         // Pas de vue en colonnes sur un serveur SFTP.
         if viewMode == .columns, currentURL.isRemote { viewMode = .details; applyViewMode() }
         if viewMode == .columns { syncBrowserToCurrentFolder() }
-        if isShown { RecentFolders.record(currentURL) }
+        if isShown, ArchiveBrowser.archive(containing: currentURL) == nil { RecentFolders.record(currentURL) }
         folderSizeGeneration += 1
         folderSizes = [:]
         computingFolders = []
@@ -682,6 +682,12 @@ final class PanelViewController: NSViewController {
                 text += " — \(selection.count) sélectionné\(selection.count > 1 ? "s" : "") (\(Format.size(bytes)))"
             }
             infoLabel.stringValue = text
+            return
+        }
+        if let (archive, _) = ArchiveBrowser.archive(containing: currentURL) {
+            // Pas d'espace libre ici : on rappelle que le contenu n'est qu'une copie de l'archive.
+            text = selection.isEmpty ? Format.items(items.count) : "\(selection.count) sur \(items.count) sélectionné\(selection.count > 1 ? "s" : "")"
+            infoLabel.stringValue = text + " — dans « \(archive.lastPathComponent) », modifications non enregistrées dans l’archive"
             return
         }
         if selection.isEmpty {
@@ -866,6 +872,11 @@ final class PanelViewController: NSViewController {
 
     @objc func goUp(_ sender: Any?) {
         guard currentURL.path != "/", !currentURL.path.isEmpty else { return }
+        // Depuis la racine d'une archive, on revient au dossier qui la contient.
+        if let (archive, root) = ArchiveBrowser.archive(containing: currentURL), root.isSameLocation(as: currentURL) {
+            navigate(to: archive.deletingLastPathComponent(), select: archive)
+            return
+        }
         navigate(to: currentURL.deletingLastPathComponent(), select: currentURL)
     }
 
@@ -975,6 +986,14 @@ final class PanelViewController: NSViewController {
         }
         if let folder = selection.first(where: \.isNavigableDirectory), selection.count == 1 {
             navigate(to: folder.url)
+            return
+        }
+        // Une archive seule s'ouvre comme un dossier (« Ouvrir avec » garde l'utilitaire d'archive).
+        if selection.count == 1, ArchiveBrowser.canBrowse(selection[0].url) {
+            let archive = selection[0].url
+            ArchiveBrowser.open(archive) { [weak self] root in
+                if let root { self?.navigate(to: root) }
+            }
             return
         }
         let files = selection.filter { !$0.isNavigableDirectory }.map(\.url)

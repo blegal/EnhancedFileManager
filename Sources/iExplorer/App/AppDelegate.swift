@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         NSApp.mainMenu = MainMenu.build()
         FileActionStore.shared.installDefaults()
         DocumentTemplates.installDefaults()
+        DispatchQueue.global(qos: .utility).async { ArchiveBrowser.purge() }
         // PATH du shell de connexion, lu d'avance pour ne pas ralentir le premier menu contextuel.
         DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.path }
         NotificationCenter.default.addObserver(forName: CustomAction.changed, object: nil, queue: .main) { [weak self] _ in
