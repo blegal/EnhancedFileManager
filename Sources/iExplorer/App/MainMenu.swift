@@ -119,6 +119,13 @@ enum MainMenu {
             sortMenu.submenu?.addItem(item(title, #selector(Panel.sortBy(_:)), "\(index + 1)", [.command, .control, .option], tag: index))
         }
 
+        let groupMenu = NSMenuItem(title: "Regrouper par", action: nil, keyEquivalent: "")
+        groupMenu.submenu = NSMenu(title: "Regrouper par")
+        for value in PanelGrouping.allCases {
+            groupMenu.submenu?.addItem(item(value.title, #selector(Panel.groupBy(_:)), tag: value.rawValue))
+            if value == .none { groupMenu.submenu?.addItem(.separator()) }
+        }
+
         let themeMenu = NSMenuItem(title: "Thème d’icônes", action: nil, keyEquivalent: "")
         themeMenu.submenu = NSMenu(title: "Thème d’icônes")
         for theme in IconTheme.allCases {
@@ -142,6 +149,7 @@ enum MainMenu {
             item("Réduire", #selector(Panel.decreaseIconSize(_:)), "-"),
             item("Taille par défaut", #selector(Panel.resetZoom(_:)), "0"),
             sortMenu,
+            groupMenu,
             item("Calculer la taille des dossiers sélectionnés", #selector(Panel.computeSelectedFolderSizes(_:)), " ", .option),
             item("Calculer la taille de tous les dossiers", #selector(Panel.computeAllFolderSizes(_:)), " ", [.option, .shift]),
             themeMenu,

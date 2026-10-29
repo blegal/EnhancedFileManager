@@ -82,6 +82,10 @@ final class PanelViewController: NSViewController {
     private var cutPaths: Set<String> = []
     private var renamingRow: Int?
     private var reloadDeferred = false
+    /// Regroupement des vues en liste, et lignes de la table qui en découlent (voir Grouping.swift).
+    var grouping: PanelGrouping = .none
+    var groupRows: [GroupRow] = []
+    var itemRows: [Int] = []
     var sortDescriptor = NSSortDescriptor(key: "name", ascending: true)
 
     // Tailles de dossiers calculées à la demande (par chemin), valables pour le dossier affiché.
@@ -116,7 +120,7 @@ final class PanelViewController: NSViewController {
         return PanelState(tabs: local.map(\.url.path), selectedTab: local.firstIndex { $0 === tab } ?? 0,
                           viewMode: viewMode.rawValue, iconSize: Double(iconSize),
                           sortKey: sortDescriptor.key, sortAscending: sortDescriptor.ascending, listScale: Double(listScale),
-                          tabColors: local.map { $0.color?.rawValue ?? -1 })
+                          tabColors: local.map { $0.color?.rawValue ?? -1 }, grouping: grouping.rawValue)
     }
 
     /// Indices sélectionnés, quel que soit le mode d'affichage.
@@ -124,7 +128,7 @@ final class PanelViewController: NSViewController {
         switch viewMode {
         case .icons: IndexSet(collectionView.selectionIndexPaths.map(\.item))
         case .columns: browserSelection
-        case .list, .details: tableView.selectedRowIndexes
+        case .list, .details: isGrouped ? IndexSet(tableView.selectedRowIndexes.compactMap(itemIndex(forRow:))) : tableView.selectedRowIndexes
         }
     }
 
@@ -156,6 +160,7 @@ final class PanelViewController: NSViewController {
         viewMode = state?.viewMode.flatMap(PanelViewMode.init(rawValue:)) ?? .details
         iconSize = CGFloat(state?.iconSize ?? 80)
         listScale = CGFloat(state?.listScale ?? 1)
+        grouping = PanelGrouping(rawValue: state?.grouping ?? 0) ?? .none
         if let key = state?.sortKey { sortDescriptor = NSSortDescriptor(key: key, ascending: state?.sortAscending ?? true) }
         super.init(nibName: nil, bundle: nil)
     }
@@ -310,7 +315,7 @@ final class PanelViewController: NSViewController {
         tableView.onZoom = { [weak self] factor in self?.zoom(by: factor) }
         tableView.contextMenuProvider = { [weak self] in self?.contextMenu() }
         tableView.onSlowClick = { [weak self] row in
-            guard let self, renamingRow == nil, selectionIndexes == [row] else { return }
+            guard let self, renamingRow == nil, let index = itemIndex(forRow: row), selectionIndexes == [index] else { return }
             renameSelection(nil)
         }
     }
@@ -347,7 +352,7 @@ final class PanelViewController: NSViewController {
     func setViewMode(_ mode: PanelViewMode) {
         if mode == .columns, currentURL.isRemote { NSSound.beep(); return }
         let hadFocus = view.window?.firstResponder === focusView
-        let selection = selectionIndexes
+        let selection = selectedURLs
         if isShowingDiskUsage {
             isShowingDiskUsage = false
             diskUsageView.stop()
@@ -355,8 +360,10 @@ final class PanelViewController: NSViewController {
         viewMode = mode
         applyViewMode()
         if mode == .columns { syncBrowserToCurrentFolder() }
+        if grouping != .none, !isShowingSearchResults, mode != .list, mode != .details { items = Self.sorted(items, by: sortDescriptor) }
         reloadViews()
-        setSelection(selection, scroll: true)
+        let paths = Set(selection.map(\.normalizedPath))
+        setSelection(IndexSet(items.indices.filter { paths.contains(items[$0].url.normalizedPath) }), scroll: true)
         if hadFocus || isActive { view.window?.makeFirstResponder(focusView) }
         host?.panelDidChangeDirectory(self)
     }
@@ -441,6 +448,7 @@ final class PanelViewController: NSViewController {
     }
 
     func reloadViews() {
+        rebuildGroups()
         tableView.reloadData()
         collectionView.reloadData()
         reloadBrowserColumn()
@@ -448,11 +456,11 @@ final class PanelViewController: NSViewController {
 
     func setSelection(_ rows: IndexSet, scroll: Bool) {
         let valid = rows.filteredIndexSet { items.indices.contains($0) }
-        tableView.selectRowIndexes(valid, byExtendingSelection: false)
+        tableView.selectRowIndexes(tableRows(forItems: valid), byExtendingSelection: false)
         collectionView.selectionIndexPaths = Set(valid.map { IndexPath(item: $0, section: 0) })
         selectInBrowser(valid)
         if let first = valid.first {
-            tableView.scrollRowToVisible(first)
+            tableView.scrollRowToVisible(tableRow(forItem: first))
             collectionView.scrollToItems(at: [IndexPath(item: first, section: 0)], scrollPosition: .nearestHorizontalEdge)
         } else if scroll, !items.isEmpty {
             tableView.scrollRowToVisible(0)
@@ -936,7 +944,7 @@ final class PanelViewController: NSViewController {
     // MARK: Ouverture
 
     @objc private func tableDoubleClicked(_ sender: Any?) {
-        guard tableView.clickedRow >= 0 else { return }
+        guard itemIndex(forRow: tableView.clickedRow) != nil else { return }
         openSelection(nil)
     }
 
@@ -1132,9 +1140,9 @@ final class PanelViewController: NSViewController {
         guard selectionIndexes.count == 1, let row = selectionIndexes.first else { return }
         if viewMode == .icons { renameWithSheet(items[row]); return }
         let column = tableView.column(withIdentifier: .name)
-        tableView.scrollRowToVisible(row)
+        tableView.scrollRowToVisible(tableRow(forItem: row))
         guard column >= 0,
-              let cell = tableView.view(atColumn: column, row: row, makeIfNecessary: true) as? NSTableCellView,
+              let cell = tableView.view(atColumn: column, row: tableRow(forItem: row), makeIfNecessary: true) as? NSTableCellView,
               let field = cell.textField else { return }
         renamingRow = row
         field.isEditable = true
@@ -1393,6 +1401,10 @@ final class PanelViewController: NSViewController {
             add("Ouvrir dans le Terminal", #selector(openInTerminal(_:)), "terminal")
             if selection.isEmpty { add("Occupation du disque", #selector(toggleDiskUsage(_:)), "chart.pie") }
         }
+        if selection.isEmpty, viewMode == .list || viewMode == .details {
+            menu.addItem(.separator())
+            menu.addItem(groupingMenuItem())
+        }
         return menu
     }
 
@@ -1484,6 +1496,9 @@ extension PanelViewController: NSMenuItemValidation {
             return !currentURL.isRemote
         case #selector(increaseIconSize(_:)), #selector(decreaseIconSize(_:)), #selector(resetZoom(_:)):
             return true
+        case #selector(groupBy(_:)):
+            menuItem.state = menuItem.tag == grouping.rawValue ? .on : .off
+            return viewMode == .list || viewMode == .details
         case #selector(sortBy(_:)):
             let keys = ["name", "size", "date", "kind"]
             menuItem.state = keys.indices.contains(menuItem.tag) && keys[menuItem.tag] == sortDescriptor.key ? .on : .off
@@ -1502,12 +1517,23 @@ extension PanelViewController: NSMenuItemValidation {
 // MARK: - Table
 
 extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
-    func numberOfRows(in tableView: NSTableView) -> Int { items.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { isGrouped ? groupRows.count : items.count }
 
-    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { ThemedRowView() }
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { isGroupHeader(row) ? nil : ThemedRowView() }
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard let identifier = tableColumn?.identifier, items.indices.contains(row) else { return nil }
+    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool { isGroupHeader(row) }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { !isGroupHeader(row) }
+
+    func tableView(_ tableView: NSTableView, selectionIndexesForProposedSelection proposed: IndexSet) -> IndexSet {
+        isGrouped ? proposed.filteredIndexSet { !isGroupHeader($0) } : proposed
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row tableRow: Int) -> NSView? {
+        if isGrouped, groupRows.indices.contains(tableRow), case .header(let title, let count) = groupRows[tableRow] {
+            return groupHeaderView(title, count: count)
+        }
+        guard let identifier = tableColumn?.identifier, let row = itemIndex(forRow: tableRow) else { return nil }
         let item = items[row]
         let dimmed = item.isHidden || cutPaths.contains(item.url.normalizedPath)
 
@@ -1638,17 +1664,18 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? {
-        tableColumn?.identifier == .name ? items[row].name : nil
+        guard tableColumn?.identifier == .name, let index = itemIndex(forRow: row) else { return nil }
+        return items[index].name
     }
 
     // Glisser-déposer
 
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
-        items[row].url as NSURL
+        itemIndex(forRow: row).map { items[$0].url as NSURL }
     }
 
-    fileprivate func dropDestination(row: Int, operation: NSTableView.DropOperation, sources: [URL]) -> URL {
-        if operation == .on, items.indices.contains(row), items[row].isNavigableDirectory,
+    fileprivate func dropDestination(row tableRow: Int, operation: NSTableView.DropOperation, sources: [URL]) -> URL {
+        if operation == .on, let row = itemIndex(forRow: tableRow), items[row].isNavigableDirectory,
            !sources.contains(where: { $0.isSameLocation(as: items[row].url) }) {
             return items[row].url
         }

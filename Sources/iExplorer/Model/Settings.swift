@@ -139,6 +139,8 @@ struct PanelState: Codable {
     var listScale: Double?
     /// Couleur de chaque onglet (indice dans `TabColor`, -1 = aucune), alignée sur `tabs`.
     var tabColors: [Int]?
+    /// Regroupement des listes (`PanelGrouping`).
+    var grouping: Int?
 }
 
 struct WindowState: Codable {

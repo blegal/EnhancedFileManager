@@ -20,8 +20,8 @@ extension PanelViewController {
             anchor = item.view
             rect = anchor.bounds
         } else if let row = selectionIndexes.first, focusView === tableView {
-            tableView.scrollRowToVisible(row)
-            rect = tableView.rect(ofRow: row)
+            tableView.scrollRowToVisible(tableRow(forItem: row))
+            rect = tableView.rect(ofRow: tableRow(forItem: row))
         }
         picker.show(relativeTo: rect, of: anchor, preferredEdge: .minY)
     }

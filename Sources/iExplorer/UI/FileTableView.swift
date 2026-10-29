@@ -77,7 +77,9 @@ final class FileTableView: NSTableView {
     override func menu(for event: NSEvent) -> NSMenu? {
         cancelSlowClick()
         let row = row(at: convert(event.locationInWindow, from: nil))
-        if row >= 0, !selectedRowIndexes.contains(row) {
+        if row >= 0, delegate?.tableView?(self, shouldSelectRow: row) == false {
+            return nil
+        } else if row >= 0, !selectedRowIndexes.contains(row) {
             selectRowIndexes([row], byExtendingSelection: false)
         } else if row < 0 {
             deselectAll(nil)

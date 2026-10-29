@@ -88,7 +88,7 @@ extension PanelViewController {
         } else {
             let column = tableView.column(withIdentifier: NSUserInterfaceItemIdentifier("size"))
             if column >= 0, !items.isEmpty {
-                tableView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<items.count), columnIndexes: [column])
+                tableView.reloadData(forRowIndexes: IndexSet(integersIn: 0..<tableView.numberOfRows), columnIndexes: [column])
             }
         }
         updateInfo()
