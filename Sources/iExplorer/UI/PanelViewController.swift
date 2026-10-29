@@ -94,13 +94,14 @@ final class PanelViewController: NSViewController {
     // Occupation du disque (⌘5)
     let diskUsageView = DiskUsageView()
     var isShowingDiskUsage = false
-    private let sizeSlider = NSSlider(value: 96, minValue: 32, maxValue: 256, target: nil, action: nil)
     private(set) var viewMode: PanelViewMode
     private(set) var iconSize: CGFloat
     private(set) var listScale: CGFloat
     private let tabBar = TabBarView()
     let breadcrumb = BreadcrumbView()
-    private let infoLabel = NSTextField(labelWithString: "")
+    /// Contenu du dossier, sélection, avertissements : affichés dans la barre d'état du panneau.
+    private(set) var infoText = ""
+    let statusBar = PanelStatusBar()
     private let accentLine = NSView()
     private var tabBarHeight: NSLayoutConstraint!
 
@@ -206,22 +207,11 @@ final class PanelViewController: NSViewController {
         accentLine.wantsLayer = true
 
         breadcrumb.onNavigate = { [weak self] url in self?.navigate(to: url) }
-        infoLabel.font = .systemFont(ofSize: 11)
-        infoLabel.textColor = Theme.secondaryText
-        infoLabel.lineBreakMode = .byTruncatingTail
-        infoLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let titles = NSStackView(views: [breadcrumb, infoLabel])
+        let titles = NSStackView(views: [breadcrumb])
         titles.orientation = .vertical
         titles.alignment = .leading
         titles.spacing = 1
         titles.setHuggingPriority(.defaultLow, for: .horizontal)
-
-        sizeSlider.controlSize = .small
-        sizeSlider.target = self
-        sizeSlider.action = #selector(iconSizeChanged(_:))
-        sizeSlider.toolTip = "Taille des icônes"
-        sizeSlider.widthAnchor.constraint(equalToConstant: 90).isActive = true
 
         gitLabel.font = .systemFont(ofSize: 11, weight: .medium)
         gitLabel.lineBreakMode = .byTruncatingTail
@@ -229,7 +219,7 @@ final class PanelViewController: NSViewController {
         gitLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         titles.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         gitLabel.isHidden = true
-        let header = NSStackView(views: [titles, gitLabel, sizeSlider])
+        let header = NSStackView(views: [titles, gitLabel])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 10
@@ -254,7 +244,8 @@ final class PanelViewController: NSViewController {
         searchBar.isHidden = true
         configureBrowser()
         diskUsageView.isHidden = true
-        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView, browser, diskUsageView] as [NSView] {
+        statusBar.panel = self
+        for view in [accentLine, tabBar, header, searchBar, separator, scrollView, gridScrollView, browser, diskUsageView, statusBar] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             root.addSubview(view)
         }
@@ -287,22 +278,26 @@ final class PanelViewController: NSViewController {
             scrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
 
             gridScrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
             gridScrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             gridScrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            gridScrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            gridScrollView.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
 
             browser.topAnchor.constraint(equalTo: separator.bottomAnchor),
             browser.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             browser.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            browser.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            browser.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
 
             diskUsageView.topAnchor.constraint(equalTo: separator.bottomAnchor),
             diskUsageView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             diskUsageView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            diskUsageView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            diskUsageView.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+
+            statusBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            statusBar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
         // Fonds du thème de couleurs : bande de barre d'outils, en-tête, liste.
         ThemeBackgroundView.install(.toolbar, in: root, bottom: root.safeAreaLayoutGuide.topAnchor)
@@ -405,12 +400,11 @@ final class PanelViewController: NSViewController {
         gridScrollView.isHidden = isShowingDiskUsage || viewMode != .icons
         browser.isHidden = isShowingDiskUsage || viewMode != .columns
         diskUsageView.isHidden = !isShowingDiskUsage
-        sizeSlider.isHidden = isShowingDiskUsage || viewMode != .icons
-        sizeSlider.doubleValue = Double(iconSize)
         let compact = viewMode == .list
         for column in tableView.tableColumns where column.identifier != .name { column.isHidden = compact }
         tableView.rowHeight = ((compact ? 22 : 24) * listScale).rounded()
         updateGridItemSize()
+        postStatusChange()
     }
 
     private func updateGridItemSize() {
@@ -418,16 +412,12 @@ final class PanelViewController: NSViewController {
         layout.itemSize = NSSize(width: iconSize + 40, height: iconSize + 50)
     }
 
-    @objc private func iconSizeChanged(_ sender: NSSlider) {
-        setIconSize(CGFloat(sender.doubleValue))
-    }
-
     func setIconSize(_ size: CGFloat) {
         let newSize = min(max(size.rounded(), 32), 256)
-        guard newSize != iconSize || sizeSlider.doubleValue != Double(newSize) else { return }
+        guard newSize != iconSize else { return }
         iconSize = newSize
-        sizeSlider.doubleValue = Double(iconSize)
         updateGridItemSize()
+        postStatusChange()
         // Seules les vignettes visibles sont reconfigurées (la mise en page suit seule).
         collectionView.reloadItems(at: collectionView.indexPathsForVisibleItems())
     }
@@ -439,7 +429,11 @@ final class PanelViewController: NSViewController {
         listScale = newScale
         let compact = viewMode == .list
         tableView.rowHeight = ((compact ? 22 : 24) * listScale).rounded()
+        // Le rechargement ne doit pas perdre la sélection.
+        let selection = tableView.selectedRowIndexes
         tableView.reloadData()
+        tableView.selectRowIndexes(selection, byExtendingSelection: false)
+        postStatusChange()
     }
 
     /// ⌘ + molette, pincement, ⌘+ / ⌘− : agrandit ou réduit selon le mode d'affichage.
@@ -690,8 +684,9 @@ final class PanelViewController: NSViewController {
     }
 
     func updateInfo() {
+        defer { postStatusChange() }
         if let loadError {
-            infoLabel.stringValue = "⚠︎ \(loadError)"
+            infoText = "⚠︎ \(loadError)"
             return
         }
         let selection = selectedItems
@@ -700,7 +695,7 @@ final class PanelViewController: NSViewController {
             text = items.count <= 1 ? "\(items.count) résultat" : "\(items.count) résultats"
             if searchResultsTruncated { text += " (limité à 2 000)" }
             if !selection.isEmpty { text += " — \(selection.count) sélectionné\(selection.count > 1 ? "s" : "")" }
-            infoLabel.stringValue = text
+            infoText = text
             return
         }
         if isFlatView {
@@ -710,13 +705,13 @@ final class PanelViewController: NSViewController {
                 let bytes = selection.compactMap(\.effectiveSize).reduce(0, +)
                 text += " — \(selection.count) sélectionné\(selection.count > 1 ? "s" : "") (\(Format.size(bytes)))"
             }
-            infoLabel.stringValue = text
+            infoText = text
             return
         }
         if let (archive, _) = ArchiveBrowser.archive(containing: currentURL) {
             // Pas d'espace libre ici : on rappelle que le contenu n'est qu'une copie de l'archive.
             text = selection.isEmpty ? Format.items(items.count) : "\(selection.count) sur \(items.count) sélectionné\(selection.count > 1 ? "s" : "")"
-            infoLabel.stringValue = text + " — dans « \(archive.lastPathComponent) », modifications non enregistrées dans l’archive"
+            infoText = text + " — dans « \(archive.lastPathComponent) », modifications non enregistrées dans l’archive"
             return
         }
         if selection.isEmpty {
@@ -724,9 +719,10 @@ final class PanelViewController: NSViewController {
         } else {
             let bytes = selection.compactMap(\.effectiveSize).reduce(0, +)
             text = "\(selection.count) sur \(items.count) sélectionné\(selection.count > 1 ? "s" : "") (\(Format.size(bytes)))"
+            if selection.count > 1 { text += " — " + Self.describeKinds(selection) }
         }
         if let freeSpace { text += ", \(freeSpace)" }
-        infoLabel.stringValue = text
+        infoText = text
     }
 
     // MARK: Thème de couleurs
@@ -1565,6 +1561,9 @@ extension PanelViewController: NSMenuItemValidation {
         case #selector(analyzeDiskUsage(_:)):
             return !currentURL.isRemote
         case #selector(increaseIconSize(_:)), #selector(decreaseIconSize(_:)), #selector(resetZoom(_:)):
+            return true
+        case #selector(toggleStatusBar(_:)):
+            menuItem.title = PanelStatusBar.isVisible ? "Masquer la barre d’état" : "Afficher la barre d’état"
             return true
         case #selector(toggleFlatView(_:)):
             menuItem.state = isFlatView ? .on : .off

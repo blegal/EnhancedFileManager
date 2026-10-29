@@ -87,6 +87,7 @@ Le script affiche la clé privée, à enregistrer dans le secret `UPDATE_SIGNING
 | Occupation du disque (activer / quitter) | ⌘5 (Échap pour quitter) |
 | Zoom (icônes ou liste) | ⌘ + molette, pincement, ⌘+ / ⌘− |
 | Taille par défaut | ⌘0 |
+| Afficher / masquer les barres d’état | ⌘/ |
 | Trier par nom, taille, date, type | ⌃⌥⌘1 … ⌃⌥⌘4 |
 | Inspecteur (aperçu, infos, permissions) | ⌥⌘I |
 | Compresser / Décompresser ici | ⌥⌘K / ⌥⌘E |
@@ -289,6 +290,13 @@ pinned = ["all", "clean"]               # en tête, les autres dans « Autres »
 - Règles d’un projet : un dossier `.iexplorer/actions/` à la racine du dépôt, partagé avec Git. Comme il peut
   exécuter n’importe quelle commande, chaque fichier doit être approuvé (et l’être de nouveau s’il change).
 - Les actions s’exécutent sur les dossiers locaux (pas encore sur les panneaux SFTP).
+
+## Barre d’état
+
+Chaque panneau a sa barre d’état en bas. À gauche : le contenu du dossier et l’espace libre, la sélection
+(nombre, taille, dossiers et fichiers), ou le détail d’un élément sélectionné seul (type, taille, date).
+À droite : le zoom du panneau (icônes ou lignes), avec −, +, le pourcentage et le retour à 100 %.
+Présentation › Masquer la barre d’état (⌘/) les masque toutes.
 
 ## Nouveau document
 

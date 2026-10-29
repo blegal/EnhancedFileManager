@@ -148,6 +148,7 @@ enum MainMenu {
             item("Agrandir", #selector(Panel.increaseIconSize(_:)), "+"),
             item("Réduire", #selector(Panel.decreaseIconSize(_:)), "-"),
             item("Taille par défaut", #selector(Panel.resetZoom(_:)), "0"),
+            item("Masquer la barre d’état", #selector(Panel.toggleStatusBar(_:)), "/"),
             sortMenu,
             groupMenu,
             item("Vue à plat", #selector(Panel.toggleFlatView(_:)), "b", [.command, .control]),
