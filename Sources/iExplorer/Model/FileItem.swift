@@ -20,6 +20,8 @@ final class FileItem: NSObject {
     private let remoteKind: String?
     /// Taille d'un dossier, une fois calculée à la demande (⌥Espace).
     var folderSize: Int64?
+    /// Niveau de retrait dans une liste aux dossiers dépliés (0 : contenu du dossier du panneau).
+    var depth = 0
     /// Tags du Finder, lus à la demande (seulement pour les lignes affichées).
     lazy var finderTags: [FinderTag] = FinderTags.read(url)
     var tags: [String] { finderTags.map(\.name) }

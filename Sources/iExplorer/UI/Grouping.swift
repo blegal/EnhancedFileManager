@@ -87,6 +87,7 @@ extension PanelViewController {
         guard value != grouping else { return }
         let selection = selectedURLs
         grouping = value
+        if !expandedPaths.isEmpty { reload() }
         if value == .none {
             // Retour à l'ordre du tri seul.
             items = isShowingSearchResults ? items : Self.sorted(items, by: sortDescriptor)

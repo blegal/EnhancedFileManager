@@ -116,6 +116,9 @@ final class PanelViewController: NSViewController {
     var grouping: PanelGrouping = .none
     /// Vue à plat du dossier courant (voir FlatView.swift), quittée au changement de dossier.
     var isFlatView = false
+    /// Dossiers dépliés dans la liste (voir Outline.swift), et la surveillance de leur contenu.
+    var expandedPaths: Set<String> = []
+    var outlineWatchers: [String: DirectoryWatcher] = [:]
     var groupRows: [GroupRow] = []
     var itemRows: [Int] = []
     var sortDescriptor = NSSortDescriptor(key: "name", ascending: true)
@@ -385,6 +388,8 @@ final class PanelViewController: NSViewController {
         }
         viewMode = mode
         if mode == .columns, isFlatView { isFlatView = false; reload() }
+        // Les dossiers dépliés n'existent qu'en liste : on recharge à plat (ou de nouveau déplié).
+        if !expandedPaths.isEmpty { reload() }
         applyViewMode()
         if mode == .columns { syncBrowserToCurrentFolder() }
         if grouping != .none, !isShowingSearchResults, mode != .list, mode != .details { items = Self.sorted(items, by: sortDescriptor) }
@@ -573,6 +578,7 @@ final class PanelViewController: NSViewController {
 
     private func showCurrentTab() {
         isFlatView = false
+        resetOutline()
         if isSearching { endSearch(reloadListing: false) }
         // Pas de vue en colonnes sur un serveur SFTP.
         if viewMode == .columns, currentURL.isRemote { viewMode = .details; applyViewMode() }
@@ -609,13 +615,15 @@ final class PanelViewController: NSViewController {
         let wanted = urls ?? selectedURLs
         let descriptor = sortDescriptor
         let flat = isFlatView && !url.isRemote
+        let expanded = canExpandFolders ? expandedPaths : []
         loadGeneration += 1
         let generation = loadGeneration
         DispatchQueue.global(qos: .userInitiated).async {
             // Lecture et tri hors du fil principal.
             let result = Result {
-                Self.sorted(flat ? FileItem.flatContents(of: url, showHidden: showHidden) : try FileItem.contents(at: url, showHidden: showHidden),
-                            by: descriptor)
+                Self.expandTree(Self.sorted(flat ? FileItem.flatContents(of: url, showHidden: showHidden) : try FileItem.contents(at: url, showHidden: showHidden),
+                                            by: descriptor),
+                                expanded: expanded, showHidden: showHidden, by: descriptor)
             }
             let free = url.isRemote ? url.host.map { "connecté à \($0)" } : Format.freeSpace(at: url)
             DispatchQueue.main.async { [weak self] in
@@ -654,6 +662,7 @@ final class PanelViewController: NSViewController {
         self.freeSpace = freeSpace
         cutPaths = FileClipboard.cutPaths
         reloadViews()
+        watchExpandedFolders()
 
         let paths = Set(wanted.map(\.normalizedPath))
         var rows = IndexSet(items.indices.filter { paths.contains(items[$0].url.normalizedPath) })
@@ -739,7 +748,7 @@ final class PanelViewController: NSViewController {
     // MARK: Git
 
     /// Recalcule l'état Git du dossier courant et des dépôts qu'il contient (en arrière-plan).
-    private func refreshGit() {
+    func refreshGit() {
         gitGeneration += 1
         let generation = gitGeneration
         guard GitService.isEnabled, !currentURL.isRemote, isShown else {
@@ -1375,6 +1384,8 @@ final class PanelViewController: NSViewController {
             computeAllFolderSizes(nil)
         case 49 where modifiers.isEmpty: // Espace
             quickLook(nil)
+        case 123 where modifiers.isEmpty || modifiers == .command, 124 where modifiers.isEmpty || modifiers == .command: // ← / →
+            return handleOutlineKey(expand: event.keyCode == 124)
         default:
             return false
         }
@@ -1614,6 +1625,11 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
             cell.apply(scale: listScale)
             cell.textField?.stringValue = item.name
             cell.imageView?.image = item.icon
+            let outline = canExpandFolders
+            cell.indent.constant = 2 + (outline ? CGFloat(item.depth) * (16 * listScale).rounded() : 0)
+            cell.disclosureWidth.constant = outline ? 14 : 0
+            cell.disclosure.isHidden = !(outline && item.isNavigableDirectory)
+            cell.disclosure.state = isExpanded(item) ? .on : .off
             cell.alphaValue = dimmed ? 0.5 : 1
             let state = gitState(for: item)
             if renamingRow != row {
@@ -1673,12 +1689,25 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         let dots = cell.tagDots
         dots.setContentHuggingPriority(.required, for: .horizontal)
         dots.setContentCompressionResistancePriority(.required, for: .horizontal)
-        for view in [image, field, dots, badge] as [NSView] {
+        let disclosure = cell.disclosure
+        disclosure.bezelStyle = .disclosure
+        disclosure.setButtonType(.pushOnPushOff)
+        disclosure.title = ""
+        disclosure.controlSize = .small
+        disclosure.target = self
+        disclosure.action = #selector(toggleDisclosure(_:))
+        disclosure.toolTip = "Déplier / replier (→ / ←)"
+        cell.indent = disclosure.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2)
+        cell.disclosureWidth = disclosure.widthAnchor.constraint(equalToConstant: 0)
+        for view in [disclosure, image, field, dots, badge] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(view)
         }
         NSLayoutConstraint.activate([
-            image.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+            cell.indent,
+            cell.disclosureWidth,
+            disclosure.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            image.leadingAnchor.constraint(equalTo: disclosure.trailingAnchor, constant: 2),
             image.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             cell.iconWidth,
             cell.iconHeight,
@@ -1717,6 +1746,8 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         guard let descriptor = tableView.sortDescriptors.first else { return }
         sortDescriptor = descriptor
+        // Avec des dossiers dépliés, chaque niveau est retrié par le rechargement.
+        if canExpandFolders, !expandedPaths.isEmpty { reload(); return }
         let selection = selectedURLs
         if isShowingSearchResults {
             items = Self.sorted(items, by: sortDescriptor)
@@ -1874,6 +1905,10 @@ final class NameCellView: ThemedCellView {
     let badge = NSTextField(labelWithString: "")
     /// Pastilles des tags du Finder.
     let tagDots = NSTextField(labelWithString: "")
+    /// Triangle des dossiers dépliables, et retrait selon la profondeur.
+    let disclosure = NSButton()
+    var indent: NSLayoutConstraint!
+    var disclosureWidth: NSLayoutConstraint!
     var iconWidth: NSLayoutConstraint!
     var iconHeight: NSLayoutConstraint!
     private var scale: CGFloat = 1
