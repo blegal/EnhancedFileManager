@@ -533,12 +533,11 @@ final class FileActionStore {
     /// Dossiers `.iexplorer/actions` de `directory` et de ses parents (jusqu'au dossier personnel exclu).
     func projectFolders(for directory: URL) -> [URL] {
         var folders: [URL] = []
-        var current = directory.standardizedFileURL
         let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
-        while current.path != "/", current.path != home {
-            let candidate = current.appendingPathComponent(Self.projectFolderName, isDirectory: true)
+        for path in directory.ancestorPaths {
+            if path == "/" || path == home { break }
+            let candidate = URL(fileURLWithPath: path, isDirectory: true).appendingPathComponent(Self.projectFolderName, isDirectory: true)
             if FileManager.default.fileExists(atPath: candidate.path) { folders.append(candidate) }
-            current = current.deletingLastPathComponent()
         }
         return folders
     }

@@ -179,14 +179,8 @@ final class GitService {
         guard url.isFileURL else { return nil }
         let start = url.resolvingSymlinksInPath().standardizedFileURL
         if let cached = lock.withLock({ rootCache[start.path] }) { return cached }
-        var cursor = start
-        var found: URL?
-        while true {
-            if FileManager.default.fileExists(atPath: cursor.appendingPathComponent(".git").path) { found = cursor; break }
-            let parent = cursor.deletingLastPathComponent()
-            if parent.path == cursor.path { break }
-            cursor = parent
-        }
+        let found = start.ancestorPaths.first { FileManager.default.fileExists(atPath: ($0 as NSString).appendingPathComponent(".git")) }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
         lock.withLock { rootCache[start.path] = found }
         return found
     }

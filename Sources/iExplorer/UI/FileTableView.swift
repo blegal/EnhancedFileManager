@@ -390,7 +390,10 @@ final class BreadcrumbView: NSView {
         }
         while !cursor.isSameLocation(as: rootURL) && cursor.path != "/" && !cursor.path.isEmpty {
             components.insert(cursor, at: 0)
-            cursor = url.isRemote ? cursor.deletingLastPathComponent().standardized : cursor.deletingLastPathComponent().standardizedFileURL
+            let parent = url.isRemote ? cursor.deletingLastPathComponent().standardized : cursor.deletingLastPathComponent().standardizedFileURL
+            // Le parent doit raccourcir le chemin, sinon la boucle ne finirait pas (voir `URL.ancestorPaths`).
+            guard parent.path.count < cursor.path.count else { break }
+            cursor = parent
         }
 
         let textColor: NSColor = isActive ? Theme.text : Theme.secondaryText

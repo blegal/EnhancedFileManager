@@ -106,6 +106,22 @@ extension URL {
         var isDir: ObjCBool = false
         return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
     }
+
+    /// Chemins de ce dossier et de ses parents, jusqu'à « / » compris. Calculé sur le texte du chemin, qui raccourcit
+    /// à chaque étape : `deletingLastPathComponent()` peut au contraire l'allonger (« .. », « ../.. »… pour un chemin
+    /// relatif), et une boucle qui attend que le parent soit égal à lui-même ne s'arrête alors jamais.
+    var ancestorPaths: [String] {
+        var path = standardizedFileURL.path
+        guard path.hasPrefix("/") else { return [] }
+        var paths = [path]
+        while path != "/" {
+            let parent = (path as NSString).deletingLastPathComponent
+            guard parent.hasPrefix("/"), parent.count < path.count else { break }
+            paths.append(parent)
+            path = parent
+        }
+        return paths
+    }
 }
 
 /// Caches partagés des icônes et des descriptions de type.

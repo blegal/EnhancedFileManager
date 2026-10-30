@@ -645,8 +645,7 @@ final class PanelViewController: NSViewController {
         case .failure(let error):
             if !currentURL.isRemote, !currentURL.isExistingDirectory {
                 // Le dossier a disparu (suppression, éjection) : on remonte au parent existant.
-                var parent = currentURL
-                while !parent.isExistingDirectory && parent.path != "/" { parent = parent.deletingLastPathComponent() }
+                let parent = URL(fileURLWithPath: currentURL.ancestorPaths.first { URL(fileURLWithPath: $0).isExistingDirectory } ?? "/")
                 tab.url = parent.standardizedFileURL
                 showCurrentTab()
                 return
