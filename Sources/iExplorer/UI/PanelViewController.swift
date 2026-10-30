@@ -817,6 +817,10 @@ final class PanelViewController: NSViewController {
 
     private func gitState(for item: FileItem) -> GitFileState? {
         guard let gitStatus, item.name != ".git" else { return nil }
+        // Élément d'un dossier déplié : son chemin ne part pas du dossier courant.
+        if item.url.deletingLastPathComponent().standardizedFileURL.path != currentURL.standardizedFileURL.path {
+            return gitState(at: item.url, isDirectory: item.isNavigableDirectory)
+        }
         let path = gitRelativeDirectory.isEmpty ? item.name : gitRelativeDirectory + "/" + item.name
         return gitStatus.state(forRelativePath: path, isDirectory: item.isNavigableDirectory)
     }
