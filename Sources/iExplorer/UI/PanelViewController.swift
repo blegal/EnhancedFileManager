@@ -130,6 +130,10 @@ final class PanelViewController: NSViewController {
 
     // Git
     private let gitLabel = NSTextField(labelWithString: "")
+    /// Précédent / suivant de l'onglet, en haut à droite du panneau (appui long : tout l'historique).
+    private let navigationControl = NSSegmentedControl()
+    private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self }
+    private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self }
     private var gitStatus: GitRepositoryStatus?
     private var gitRelativeDirectory = ""
     private var gitSummaries: [String: GitSummary] = [:]
@@ -222,7 +226,8 @@ final class PanelViewController: NSViewController {
         gitLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         titles.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         gitLabel.isHidden = true
-        let header = NSStackView(views: [titles, gitLabel])
+        configureNavigationControl()
+        let header = NSStackView(views: [titles, gitLabel, navigationControl])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 10
@@ -590,9 +595,40 @@ final class PanelViewController: NSViewController {
         if currentURL.isRemote || !isShown { watcher.stop() } else { watcher.watch(currentURL) }
         breadcrumb.show(currentURL)
         updateTabBar()
+        updateNavigationControl()
         reload(selecting: tab.selection, scrollToSelection: true)
         if isShowingDiskUsage { showDiskUsage() }
         host?.panelDidChangeDirectory(self)
+    }
+
+    private func configureNavigationControl() {
+        navigationControl.segmentCount = 2
+        navigationControl.trackingMode = .momentary
+        navigationControl.segmentStyle = .separated
+        navigationControl.controlSize = .small
+        navigationControl.target = self
+        navigationControl.action = #selector(navigationClicked(_:))
+        for (segment, symbol, label, provider) in [(0, "chevron.left", "Précédent (⌘[)", backMenu), (1, "chevron.right", "Suivant (⌘])", forwardMenu)] {
+            navigationControl.setImage(NSImage(systemSymbolName: symbol, accessibilityDescription: label), forSegment: segment)
+            navigationControl.setWidth(24, forSegment: segment)
+            navigationControl.setToolTip(label + " — maintenir le clic pour tout l’historique de l’onglet", forSegment: segment)
+            let menu = NSMenu()
+            menu.delegate = provider
+            navigationControl.setMenu(menu, forSegment: segment)
+            navigationControl.setShowsMenuIndicator(false, forSegment: segment)
+        }
+        navigationControl.setContentHuggingPriority(.required, for: .horizontal)
+        navigationControl.setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+
+    @objc private func navigationClicked(_ sender: NSSegmentedControl) {
+        activate(focusTable: true)
+        if sender.selectedSegment == 0 { goBack(nil) } else { goForward(nil) }
+    }
+
+    func updateNavigationControl() {
+        navigationControl.setEnabled(!tab.back.isEmpty, forSegment: 0)
+        navigationControl.setEnabled(!tab.forward.isEmpty, forSegment: 1)
     }
 
     func updateTabBar() {

@@ -232,6 +232,7 @@ extension PanelViewController: NSBrowserDelegate {
             tab.back.append(currentURL)
             tab.forward.removeAll()
             tab.url = parentURL
+            updateNavigationControl()
             followBrowserFolder()
             host?.panel(self, didMoveFrom: old, to: parentURL)
         }
