@@ -19,6 +19,12 @@ final class PanelSearchBar: NSView, NSSearchFieldDelegate {
     let field = NSSearchField()
     private let scopeControl = NSSegmentedControl(labels: ["Ce dossier", "Sous-dossiers", "Contenu"], trackingMode: .selectOne, target: nil, action: nil)
     private let spinner = NSProgressIndicator()
+    /// « 12 sur 240 » quand le filtre du dossier est actif.
+    private let countLabel = NSTextField(labelWithString: "")
+    /// Épinglé : le filtre reste actif en changeant de dossier.
+    private let pinButton = NSButton()
+
+    var isPinned: Bool { pinButton.state == .on && scope == .folder }
 
     var scope: SearchScope { SearchScope(rawValue: scopeControl.selectedSegment) ?? .folder }
 
@@ -57,7 +63,17 @@ final class PanelSearchBar: NSView, NSSearchFieldDelegate {
         close.contentTintColor = .tertiaryLabelColor
         close.toolTip = "Fermer la recherche (Échap)"
 
-        let stack = NSStackView(views: [field, scopeControl, spinner, close])
+        countLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        countLabel.textColor = .secondaryLabelColor
+        countLabel.setContentHuggingPriority(.required, for: .horizontal)
+        pinButton.image = NSImage(systemSymbolName: "pin", accessibilityDescription: "Garder le filtre")
+        pinButton.alternateImage = NSImage(systemSymbolName: "pin.fill", accessibilityDescription: "Garder le filtre")
+        pinButton.setButtonType(.toggle)
+        pinButton.isBordered = false
+        pinButton.contentTintColor = .secondaryLabelColor
+        pinButton.toolTip = "Garder le filtre en changeant de dossier"
+
+        let stack = NSStackView(views: [field, countLabel, scopeControl, pinButton, spinner, close])
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -77,7 +93,22 @@ final class PanelSearchBar: NSView, NSSearchFieldDelegate {
         if busy { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
     }
 
-    @objc private func changed() { onChange?(field.stringValue, scope) }
+    @objc private func changed() {
+        pinButton.isHidden = scope != .folder
+        onChange?(field.stringValue, scope)
+    }
+
+    /// Passe en filtre du dossier affiché.
+    func selectFolderScope() {
+        guard scope != .folder else { return }
+        scopeControl.selectedSegment = SearchScope.folder.rawValue
+        changed()
+    }
+
+    func setCount(shown: Int, total: Int, active: Bool) {
+        countLabel.stringValue = active ? "\(shown) sur \(total)" : ""
+        countLabel.isHidden = !active
+    }
     @objc private func closeSearch() { onClose?() }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -107,6 +138,18 @@ extension PanelViewController {
         }
         activate(focusTable: false)
         view.window?.makeFirstResponder(searchBar.field)
+    }
+
+    /// ⌥⌘F : filtre instantané du dossier affiché, comme la barre de filtre de Dolphin.
+    @objc func showFilter(_ sender: Any?) {
+        showSearch(sender)
+        searchBar.selectFolderScope()
+    }
+
+    /// Compteur du filtre, après chaque filtrage ou rechargement.
+    func updateFilterCount() {
+        let active = isSearching && searchBar.scope == .folder && !searchBar.field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty
+        searchBar.setCount(shown: items.count, total: allItems.count, active: active)
     }
 
     /// Ferme la recherche et revient au contenu du dossier.
@@ -161,6 +204,7 @@ extension PanelViewController {
         let selection = selectedURLs
         items = matcher.map { match in allItems.filter { item in match(item.name) { item.finderTags } } } ?? allItems
         reloadViews()
+        updateFilterCount()
         let paths = Set(selection.map(\.normalizedPath))
         setSelection(IndexSet(items.indices.filter { paths.contains(items[$0].url.normalizedPath) }), scroll: false)
     }

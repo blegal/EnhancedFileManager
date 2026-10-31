@@ -115,6 +115,7 @@ enum MainMenu {
             item("Sélectionner les éléments du même type", #selector(Panel.selectSameType(_:))),
             separator(),
             item("Rechercher…", #selector(Panel.showSearch(_:)), "f"),
+            item("Filtrer ce dossier…", #selector(Panel.showFilter(_:)), "f", [.command, .option]),
         ])
 
         let sortMenu = NSMenuItem(title: "Trier par", action: nil, keyEquivalent: "")

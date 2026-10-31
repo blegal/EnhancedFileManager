@@ -586,7 +586,8 @@ final class PanelViewController: NSViewController {
     private func showCurrentTab() {
         isFlatView = false
         resetOutline()
-        if isSearching { endSearch(reloadListing: false) }
+        // Un filtre épinglé suit le panneau de dossier en dossier.
+        if isSearching, !searchBar.isPinned { endSearch(reloadListing: false) }
         // Pas de vue en colonnes sur un serveur SFTP.
         if viewMode == .columns, currentURL.isRemote { viewMode = .details; applyViewMode() }
         if viewMode == .columns { syncBrowserToCurrentFolder() }
@@ -696,6 +697,7 @@ final class PanelViewController: NSViewController {
             for item in list where item.isNavigableDirectory { item.folderSize = folderSizes[item.url.normalizedPath] }
             let filter = isSearching && searchBar.scope == .folder ? Self.nameMatcher(for: searchBar.field.stringValue.trimmingCharacters(in: .whitespaces)) : nil
             items = filter.map { match in list.filter { item in match(item.name) { item.finderTags } } } ?? list
+            updateFilterCount()
             loadError = nil
         case .failure(let error):
             if !currentURL.isRemote, !currentURL.isExistingDirectory {
