@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppAppearance.apply()
         NSApp.mainMenu = MainMenu.build()
+        KeyboardShortcuts.apply()
         FileActionStore.shared.installDefaults()
         DocumentTemplates.installDefaults()
         DispatchQueue.global(qos: .utility).async { ArchiveBrowser.purge() }

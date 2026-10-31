@@ -69,6 +69,8 @@ enum MainMenu {
             item("À propos de \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             updates,
             separator(),
+            item("Raccourcis clavier…", #selector(AppDelegate.showKeyboardShortcuts(_:)), ",", [.command, .option]),
+            separator(),
             services,
             separator(),
             item("Masquer \(appName)", #selector(NSApplication.hide(_:)), "h"),
