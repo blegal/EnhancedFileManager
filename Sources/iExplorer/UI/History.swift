@@ -1,9 +1,10 @@
 import AppKit
 
-/// Dossiers récemment ouverts (tous panneaux confondus, 20 au plus).
+/// Historique des dossiers ouverts (tous panneaux confondus, 50 au plus, le plus récent en premier).
 enum RecentFolders {
+    static let changed = Notification.Name("RecentFoldersChanged")
     private static let key = "recentFolders"
-    private static let limit = 20
+    private static let limit = 50
 
     static var all: [URL] {
         (UserDefaults.standard.stringArray(forKey: key) ?? []).map { URL(fileURLWithPath: $0, isDirectory: true) }
@@ -12,12 +13,22 @@ enum RecentFolders {
     static func record(_ url: URL) {
         guard url.isFileURL else { return }
         var paths = UserDefaults.standard.stringArray(forKey: key) ?? []
+        guard paths.first != url.path else { return }
         paths.removeAll { $0 == url.path }
         paths.insert(url.path, at: 0)
-        UserDefaults.standard.set(Array(paths.prefix(limit)), forKey: key)
+        save(Array(paths.prefix(limit)))
     }
 
-    static func clear() { UserDefaults.standard.removeObject(forKey: key) }
+    static func remove(_ url: URL) {
+        save((UserDefaults.standard.stringArray(forKey: key) ?? []).filter { $0 != url.path })
+    }
+
+    static func clear() { save([]) }
+
+    private static func save(_ paths: [String]) {
+        UserDefaults.standard.set(paths, forKey: key)
+        NotificationCenter.default.post(name: changed, object: nil)
+    }
 }
 
 /// Élément de menu pour un dossier : nom, icône et chemin en info-bulle.
@@ -80,15 +91,15 @@ final class HistoryMenuProvider: NSObject, NSMenuDelegate {
                 menu.addItem(NSMenuItem(title: "Aucun historique", action: nil, keyEquivalent: ""))
             }
         case .recent:
-            let recents = RecentFolders.all.filter(\.isExistingDirectory)
+            let recents = Array(RecentFolders.all.filter(\.isExistingDirectory).prefix(30))
             for url in recents {
                 menu.addItem(folderMenuItem(url, action: #selector(PanelViewController.openRecentFolder(_:))))
             }
             if recents.isEmpty {
-                menu.addItem(NSMenuItem(title: "Aucun dossier récent", action: nil, keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Historique vide", action: nil, keyEquivalent: ""))
             } else {
                 menu.addItem(.separator())
-                let clear = NSMenuItem(title: "Effacer la liste", action: #selector(AppDelegate.clearRecentFolders(_:)), keyEquivalent: "")
+                let clear = NSMenuItem(title: "Effacer l’historique", action: #selector(AppDelegate.clearRecentFolders(_:)), keyEquivalent: "")
                 clear.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
                 menu.addItem(clear)
             }

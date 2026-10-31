@@ -174,8 +174,8 @@ enum MainMenu {
             item("Plein écran", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ])
 
-        let recentItem = NSMenuItem(title: "Dossiers récents", action: nil, keyEquivalent: "")
-        recentItem.submenu = NSMenu(title: "Dossiers récents")
+        let recentItem = NSMenuItem(title: "Historique", action: nil, keyEquivalent: "")
+        recentItem.submenu = NSMenu(title: "Historique")
         recentItem.submenu?.delegate = recentProvider
 
         submenu("Aller", [

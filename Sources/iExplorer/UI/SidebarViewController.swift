@@ -13,6 +13,7 @@ final class SidebarItem {
     /// Volumes locaux : capacité totale et espace disponible (jauge).
     var capacity: (total: Int64, available: Int64)?
     var isCustomFavorite = false
+    var isRecent = false
     var connection: ServerConnection?
     var sftpEndpoint: SFTPEndpoint?
     var children: [SidebarItem] = []
@@ -40,6 +41,9 @@ final class SidebarViewController: NSViewController {
     private let outlineView = NSOutlineView()
     private var sections: [SidebarItem] = []
     private weak var favoritesSection: SidebarItem?
+    private weak var recentsSection: SidebarItem?
+    /// Dossiers de l'historique affichés dans la barre latérale (le reste est dans Aller › Historique).
+    private static let recentCount = 8
     private var isRebuilding = false
     private var isRestoringExpansion = false
 
@@ -99,6 +103,7 @@ final class SidebarViewController: NSViewController {
             workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
         }
         NotificationCenter.default.addObserver(forName: Preferences.favoritesChanged, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
+        NotificationCenter.default.addObserver(forName: RecentFolders.changed, object: nil, queue: .main) { [weak self] _ in self?.rebuildRecents() }
         NotificationCenter.default.addObserver(forName: SFTPManager.sessionsChanged, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
         NotificationCenter.default.addObserver(forName: ColorTheme.changed, object: nil, queue: .main) { [weak self] _ in
             self?.applySidebarAppearance()
@@ -222,7 +227,10 @@ final class SidebarViewController: NSViewController {
         tags.children = FinderTags.standard.map { standard in
             SidebarItem(kind: .tag, title: standard.name, symbol: "circle.fill", tint: standard.color)
         }
-        sections = [favorites, devices, network, tags]
+        let recents = SidebarItem(kind: .section, title: "Récents")
+        recentsSection = recents
+        recents.children = Self.recentItems()
+        sections = [favorites, recents, devices, network, tags]
         isRestoringExpansion = true
         outlineView.reloadData()
         let collapsed = Preferences.collapsedSidebarSections
@@ -230,9 +238,26 @@ final class SidebarViewController: NSViewController {
         isRestoringExpansion = false
     }
 
-    /// Met en surbrillance l'entrée correspondant au dossier du panneau actif.
+    private static func recentItems() -> [SidebarItem] {
+        RecentFolders.all.filter(\.isExistingDirectory).prefix(recentCount).map { url in
+            let item = SidebarItem(kind: .location, title: BreadcrumbView.displayName(url), symbol: "clock", tint: .secondaryLabelColor, url: url)
+            item.isRecent = true
+            return item
+        }
+    }
+
+    /// L'historique change à chaque déplacement : seule sa section est rechargée.
+    private func rebuildRecents() {
+        guard let recents = recentsSection else { return }
+        let selected = (outlineView.item(atRow: outlineView.selectedRow) as? SidebarItem)?.url
+        recents.children = Self.recentItems()
+        outlineView.reloadItem(recents, reloadChildren: true)
+        if let selected { highlight(selected) }
+    }
+
+    /// Met en surbrillance l'entrée correspondant au dossier du panneau actif (hors historique).
     func highlight(_ url: URL) {
-        for section in sections {
+        for section in sections where section !== recentsSection {
             for item in section.children where item.url.map({ $0.isSameLocation(as: url) }) == true {
                 let row = outlineView.row(forItem: item)
                 if row >= 0 { outlineView.selectRowIndexes([row], byExtendingSelection: false) }
@@ -274,6 +299,16 @@ final class SidebarViewController: NSViewController {
     @objc private func analyzeVolume(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         onAnalyzeDisk?(url)
+    }
+
+    @objc private func addRecentToFavorites(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        Preferences.addFavorites([url])
+    }
+
+    @objc private func removeRecent(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        RecentFolders.remove(url)
     }
 
     @objc private func removeFavorite(_ sender: NSMenuItem) {
@@ -517,6 +552,23 @@ extension SidebarViewController: NSMenuDelegate {
                                             ("Rétablir les favoris par défaut…", #selector(resetFavorites(_:)), "arrow.counterclockwise")] {
                 let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
                 entry.target = self
+                entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+                menu.addItem(entry)
+            }
+        }
+        if item === recentsSection {
+            let clear = NSMenuItem(title: "Effacer l’historique", action: #selector(AppDelegate.clearRecentFolders(_:)), keyEquivalent: "")
+            clear.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+            menu.addItem(clear)
+        }
+        if item.isRecent, let url = item.url {
+            menu.addItem(.separator())
+            let isFavorite = (Preferences.sidebarFavorites ?? []).contains { $0.isSameLocation(as: url) }
+            for (title, action, symbol) in [("Ajouter aux favoris", isFavorite ? nil : #selector(addRecentToFavorites(_:)), "star"),
+                                            ("Retirer de l’historique", #selector(removeRecent(_:)), "minus.circle")] {
+                let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
+                entry.target = self
+                entry.representedObject = url
                 entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
                 menu.addItem(entry)
             }
