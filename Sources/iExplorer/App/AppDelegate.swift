@@ -30,6 +30,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if EditorViewController.hasUnsavedChanges {
+            let alert = NSAlert()
+            alert.messageText = "Des fichiers modifiés dans l’éditeur ne sont pas enregistrés."
+            alert.informativeText = "Si vous quittez maintenant, ces modifications seront perdues."
+            alert.addButton(withTitle: "Annuler")
+            alert.addButton(withTitle: "Quitter sans enregistrer")
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        }
         guard FileOperationCenter.shared.hasActiveJobs else { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = "Des opérations sur les fichiers sont en cours."

@@ -37,6 +37,8 @@ final class PanelsViewController: NSViewController, PanelHost {
 
     private let container = NSView()
     private let jobsView = JobsView()
+    /// Éditeur à côté du panneau en disposition « un seul panneau ».
+    let editor = EditorViewController()
     /// Vues partagées des panneaux, de la plus extérieure à la plus intérieure.
     private var splitViews: [NSSplitView] = []
     private var gridObservers: [NSObjectProtocol] = []
@@ -93,6 +95,10 @@ final class PanelsViewController: NSViewController, PanelHost {
             panel.view.removeFromSuperview()
             panel.removeFromParent()
         }
+        if editor.parent != nil {
+            editor.view.removeFromSuperview()
+            editor.removeFromParent()
+        }
 
         let visible = visiblePanels
         visible.forEach(addChild)
@@ -100,6 +106,9 @@ final class PanelsViewController: NSViewController, PanelHost {
         let views = visible.map(\.view)
         let content: NSView
         switch layout {
+        case .single where showsEditor:
+            addChild(editor)
+            content = makeSplit(vertical: true, [views[0], editor.view])
         case .single: content = views[0]
         case .twoColumns, .threeColumns: content = makeSplit(vertical: true, views)
         case .twoRows: content = makeSplit(vertical: false, views)
@@ -235,8 +244,11 @@ final class PanelsViewController: NSViewController, PanelHost {
         if panel.index == activeIndex { onActivePanelChange?(panel) }
     }
 
+    var showsEditor: Bool { layout == .single && EditorViewController.isEnabled }
+
     func panelSelectionDidChange(_ panel: PanelViewController) {
         if panel.index == activeIndex { onActiveSelectionChange?(panel) }
+        if showsEditor, panel.index == activeIndex { editor.follow(panel.selectedItems) }
     }
 
     /// Navigation synchronisée : descendre dans un sous-dossier ou remonter de N niveaux
@@ -461,7 +473,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private func updateInspectorVisibility(layout: Int, animated: Bool) {
         let defaults = UserDefaults.standard
         let key = inspectorPreferenceKey(layout: layout)
-        let visible = defaults.object(forKey: key) as? Bool ?? (layout == 1)
+        // En panneau unique, l'éditeur occupe la place de l'inspecteur (sauf choix contraire).
+        let visible = defaults.object(forKey: key) as? Bool ?? (layout == 1 && !EditorViewController.isEnabled)
         guard inspectorItem.isCollapsed == visible else { return }
         if animated { inspectorItem.animator().isCollapsed = !visible } else { inspectorItem.isCollapsed = !visible }
         if visible { updateInspector(activePanel) }
@@ -476,6 +489,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private func updateInspector(_ panel: PanelViewController) {
         guard !inspectorItem.isCollapsed, panel === activePanel else { return }
         inspector.show(selection: panel.selectedItems, folder: panel.currentURL)
+    }
+
+    /// Présentation › Éditeur : passe en panneau unique pour lui laisser la place.
+    @objc func toggleEditor(_ sender: Any?) {
+        EditorViewController.isEnabled.toggle()
+        let layout: PanelLayout = EditorViewController.isEnabled ? .single : panelsController.layout
+        panelsController.applyLayout(layout)
+        layoutItem?.image = layout.icon()
     }
 
     /// Active ou désactive la navigation synchronisée des panneaux.
@@ -604,6 +625,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(setLayout(_:)) {
             menuItem.state = menuItem.tag == panelsController.layout.rawValue ? .on : .off
+        }
+        if menuItem.action == #selector(toggleEditor(_:)) {
+            menuItem.state = EditorViewController.isEnabled ? .on : .off
         }
         if menuItem.action == #selector(toggleSyncNavigation(_:)) {
             menuItem.state = Preferences.syncNavigation ? .on : .off
