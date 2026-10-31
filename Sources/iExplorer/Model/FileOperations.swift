@@ -344,6 +344,40 @@ final class FileOperationCenter {
         return va.isEqual(vb)
     }
 
+    // MARK: Liens
+
+    /// Crée dans `destination` un lien vers chaque source : symbolique (chemin absolu) ou physique (fichiers
+    /// du même volume). Un nom déjà pris devient « nom (lien) ». Renvoie les liens créés ; annulable.
+    @discardableResult
+    func createLinks(to sources: [URL], in destination: URL, hard: Bool, undoManager: UndoManager?) -> [URL] {
+        var created: [URL] = []
+        var failures: [String] = []
+        for source in sources where source.isFileURL {
+            var target = destination.appendingPathComponent(source.lastPathComponent)
+            if itemExists(target) { target = uniqueURL(for: target, suffix: " (lien)") }
+            do {
+                if hard {
+                    guard !source.isExistingDirectory else { throw makeError("« \(source.lastPathComponent) » est un dossier : macOS n’accepte pas de lien physique vers un dossier.") }
+                    try fm.linkItem(at: source, to: target)
+                } else {
+                    try fm.createSymbolicLink(at: target, withDestinationURL: source.standardizedFileURL)
+                }
+                created.append(target)
+            } catch {
+                failures.append(error.localizedDescription)
+            }
+        }
+        if let undoManager, !created.isEmpty {
+            let links = created
+            undoManager.registerUndo(withTarget: self) { center in
+                for link in links { try? center.fm.removeItem(at: link) }
+            }
+            undoManager.setActionName(hard ? "Créer un lien physique" : "Créer un lien symbolique")
+        }
+        if !failures.isEmpty { showError(failures.joined(separator: "\n")) }
+        return created
+    }
+
     /// « nom.ext » → « nom copie.ext », « nom copie 2.ext »… (ou « nom 2.ext »).
     func uniqueURL(for url: URL, suffix: String) -> URL {
         let directory = url.deletingLastPathComponent()
@@ -368,6 +402,8 @@ final class FileOperationCenter {
     static func dropOperation(for info: NSDraggingInfo, sources: [URL], destination: URL) -> NSDragOperation {
         let mask = info.draggingSourceOperationMask
         if mask == .copy { return .copy }
+        // ⌃ pendant le glisser : créer des liens symboliques (comme Nautilus et Dolphin).
+        if mask == .link, sources.allSatisfy(\.isFileURL), destination.isFileURL { return .link }
         if mask == .generic || mask == .move { return .move }
         if mask.contains(.copy) && mask.contains(.move) {
             return sources.allSatisfy { sameVolume($0, destination) } ? .move : .copy

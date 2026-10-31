@@ -59,7 +59,7 @@ extension PanelViewController: NSBrowserDelegate {
         browser.contextMenuProvider = { [weak self] in self?.contextMenu() }
         browser.registerForDraggedTypes([.fileURL])
         browser.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: false)
-        browser.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
+        browser.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: true)
     }
 
     /// Racine des colonnes : le dossier personnel si on y est, sinon la racine du volume.
@@ -190,6 +190,7 @@ extension PanelViewController: NSBrowserDelegate {
         let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
         guard !operation.isEmpty else { return false }
         activate(focusTable: false)
+        if operation == .link { linkItems(sources, in: destination); return true }
         transfer(operation == .copy ? .copy : .move, sources, to: destination)
         return true
     }

@@ -16,6 +16,22 @@ enum MainMenu {
     }
 
     /// Fournit le sous-menu « Dossiers récents » (gardé en vie pour toute la durée de l'app).
+    /// Fichier › Créer un lien : symbolique ou physique, ici ou dans l'autre panneau.
+    private static func linkMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Créer un lien")
+        for (title, action, key, modifiers) in [("Lien symbolique ici", #selector(Panel.symlinkHere(_:)), "l", NSEvent.ModifierFlags([.command, .control])),
+                                                ("Lien symbolique dans l’autre panneau", #selector(Panel.symlinkInOtherPanel(_:)), String(Character(UnicodeScalar(UInt32(NSF5FunctionKey))!)), [.control]),
+                                                ("Lien physique ici", #selector(Panel.hardLinkHere(_:)), "", []),
+                                                ("Lien physique dans l’autre panneau", #selector(Panel.hardLinkInOtherPanel(_:)), "", [])] {
+            let entry = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            entry.keyEquivalentModifierMask = modifiers
+            menu.addItem(entry)
+        }
+        let item = NSMenuItem(title: "Créer un lien", action: nil, keyEquivalent: "")
+        item.submenu = menu
+        return item
+    }
+
     private static let recentProvider = HistoryMenuProvider(kind: .recent) { nil }
 
     private typealias Panel = PanelViewController
@@ -85,6 +101,7 @@ enum MainMenu {
             item("Renommer par lot…", #selector(Panel.batchRename(_:)), "r", [.command, .control]),
             item("Copier vers l’autre panneau", #selector(Panel.copyToOtherPanel(_:)), functionKey(NSF5FunctionKey), []),
             item("Déplacer vers l’autre panneau", #selector(Panel.moveToOtherPanel(_:)), functionKey(NSF6FunctionKey), []),
+            linkMenuItem(),
             item("Placer dans la corbeille", #selector(Panel.moveToTrash(_:)), "\u{8}"),
             item("Vérifier les copies", #selector(AppDelegate.toggleVerifyCopies(_:))),
             separator(),

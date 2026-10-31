@@ -532,6 +532,10 @@ extension SidebarViewController: NSOutlineViewDataSource, NSOutlineViewDelegate 
         let sources = FileClipboard.fileURLs(from: info.draggingPasteboard)
         let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
         guard !sources.isEmpty, !operation.isEmpty else { return false }
+        if operation == .link {
+            FileOperationCenter.shared.createLinks(to: sources, in: destination, hard: false, undoManager: view.window?.undoManager)
+            return true
+        }
         FileOperationCenter.shared.transfer(operation == .copy ? .copy : .move, sources: sources, to: destination,
                                             undoManager: view.window?.undoManager)
         return true

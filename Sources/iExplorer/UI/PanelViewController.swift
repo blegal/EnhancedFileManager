@@ -345,7 +345,7 @@ final class PanelViewController: NSViewController {
         tableView.doubleAction = #selector(tableDoubleClicked(_:))
         tableView.registerForDraggedTypes([.fileURL])
         tableView.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: false)
-        tableView.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
+        tableView.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: true)
         tableView.draggingDestinationFeedbackStyle = .regular
         tableView.onFocus = { [weak self] in self?.activate(focusTable: false) }
         tableView.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
@@ -372,7 +372,7 @@ final class PanelViewController: NSViewController {
         collectionView.delegate = self
         collectionView.registerForDraggedTypes([.fileURL])
         collectionView.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: false)
-        collectionView.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
+        collectionView.setDraggingSourceOperationMask([.copy, .move, .generic, .link], forLocal: true)
         collectionView.onFocus = { [weak self] in
             self?.activate(focusTable: false)
             self?.collectionView.refreshSelectionStyle()
@@ -1227,6 +1227,28 @@ final class PanelViewController: NSViewController {
         }
     }
 
+    // MARK: Liens
+
+    @objc func symlinkHere(_ sender: Any?) { makeLinks(hard: false, inOtherPanel: false) }
+    @objc func symlinkInOtherPanel(_ sender: Any?) { makeLinks(hard: false, inOtherPanel: true) }
+    @objc func hardLinkHere(_ sender: Any?) { makeLinks(hard: true, inOtherPanel: false) }
+    @objc func hardLinkInOtherPanel(_ sender: Any?) { makeLinks(hard: true, inOtherPanel: true) }
+
+    private func makeLinks(hard: Bool, inOtherPanel: Bool) {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { return }
+        let target = inOtherPanel ? host?.targetPanels(for: self).first : self
+        guard let target, target.currentURL.isFileURL else { NSSound.beep(); return }
+        linkItems(urls, in: target.currentURL, hard: hard, reloading: target)
+    }
+
+    /// Dépôt avec ⌃ ou commandes « Créer un lien » : le panneau qui montre la destination sélectionne les liens.
+    func linkItems(_ sources: [URL], in destination: URL, hard: Bool = false, reloading panel: PanelViewController? = nil) {
+        let created = FileOperationCenter.shared.createLinks(to: sources, in: destination, hard: hard, undoManager: undoManager)
+        let panel = panel ?? self
+        if !created.isEmpty, destination.isSameLocation(as: panel.currentURL) { panel.reload(selecting: created) }
+    }
+
     // MARK: Création, renommage, corbeille
 
     @objc func newFolder(_ sender: Any?) {
@@ -1527,6 +1549,16 @@ final class PanelViewController: NSViewController {
                 menu.addItem(.separator())
                 menu.addItem(tagsMenuItem())
                 if let actions = customActionsMenuItem() { menu.addItem(actions) }
+                let links = NSMenuItem(title: "Créer un lien", action: nil, keyEquivalent: "")
+                links.image = NSImage(systemSymbolName: "link.badge.plus", accessibilityDescription: nil)
+                links.submenu = NSMenu()
+                for (title, action) in [("Lien symbolique ici", #selector(symlinkHere(_:))), ("Lien symbolique dans l’autre panneau", #selector(symlinkInOtherPanel(_:))),
+                                        ("Lien physique ici", #selector(hardLinkHere(_:))), ("Lien physique dans l’autre panneau", #selector(hardLinkInOtherPanel(_:)))] {
+                    let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
+                    entry.target = self
+                    links.submenu?.addItem(entry)
+                }
+                menu.addItem(links)
                 menu.addItem(shareMenuItem(for: selection.map(\.url)))
                 if selection.contains(where: { !$0.isNavigableDirectory }) {
                     let isList = selection.count == 1 && Checksums.listExtensions.contains(selection[0].url.pathExtension.lowercased())
@@ -1636,6 +1668,10 @@ extension PanelViewController: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(showChecksums(_:)):
             return selectedItems.contains { !$0.isNavigableDirectory }
+        case #selector(symlinkHere(_:)), #selector(symlinkInOtherPanel(_:)):
+            return hasSelection && currentURL.isFileURL
+        case #selector(hardLinkHere(_:)), #selector(hardLinkInOtherPanel(_:)):
+            return hasSelection && currentURL.isFileURL && !selectedItems.contains(where: \.isNavigableDirectory)
         case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)), #selector(moveToTrash(_:)),
              #selector(openSelection(_:)), #selector(quickLook(_:)), #selector(shareSelection(_:)), #selector(selectSameType(_:)):
             return hasSelection
@@ -1899,6 +1935,7 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         if sources.contains(where: { destination.isInside($0) }) { return [] }
         let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
         if operation == .move, sources.allSatisfy({ $0.deletingLastPathComponent().isSameLocation(as: destination) }) { return [] }
+        if operation == .link, currentURL.isRemote { return [] }
         return operation
     }
 
@@ -1914,6 +1951,7 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         let operation = FileOperationCenter.dropOperation(for: info, sources: sources, destination: destination)
         guard !operation.isEmpty else { return false }
         activate()
+        if operation == .link { linkItems(sources, in: destination); return true }
         transfer(operation == .copy ? .copy : .move, sources, to: destination)
         return true
     }
