@@ -30,6 +30,12 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "syncNavigation") }
     }
 
+    /// Touches de Total Commander dans les panneaux : F3, F4, F7, F8, ⇧F6, + − * du pavé numérique.
+    static var commanderKeys: Bool {
+        get { defaults.bool(forKey: "commanderKeys") }
+        set { defaults.set(newValue, forKey: "commanderKeys") }
+    }
+
     static var showHiddenFiles: Bool {
         get { defaults.bool(forKey: "showHiddenFiles") }
         set {

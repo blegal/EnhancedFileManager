@@ -116,6 +116,8 @@ enum MainMenu {
             separator(),
             item("Rechercher…", #selector(Panel.showSearch(_:)), "f"),
             item("Filtrer ce dossier…", #selector(Panel.showFilter(_:)), "f", [.command, .option]),
+            separator(),
+            item("Touches de Total Commander (F3 à F8, + − *)", #selector(AppDelegate.toggleCommanderKeys(_:))),
         ])
 
         let sortMenu = NSMenuItem(title: "Trier par", action: nil, keyEquivalent: "")

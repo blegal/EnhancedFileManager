@@ -113,6 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         IconTheme.current = IconTheme(rawValue: sender.tag) ?? .system
     }
 
+    @objc func toggleCommanderKeys(_ sender: Any?) {
+        Preferences.commanderKeys.toggle()
+    }
+
     @objc func toggleHiddenFiles(_ sender: Any?) {
         Preferences.showHiddenFiles.toggle()
     }
@@ -129,6 +133,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         if menuItem.action == #selector(toggleVerifyCopies(_:)) {
             menuItem.state = Preferences.verifyCopies ? .on : .off
+        }
+        if menuItem.action == #selector(toggleCommanderKeys(_:)) {
+            menuItem.state = Preferences.commanderKeys ? .on : .off
         }
         if menuItem.action == #selector(toggleGit(_:)) {
             menuItem.state = GitService.isEnabled ? .on : .off

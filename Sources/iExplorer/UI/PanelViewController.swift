@@ -1447,9 +1447,33 @@ final class PanelViewController: NSViewController {
         case 123 where modifiers.isEmpty || modifiers == .command, 124 where modifiers.isEmpty || modifiers == .command: // ← / →
             return handleOutlineKey(expand: event.keyCode == 124)
         default:
-            return false
+            return Preferences.commanderKeys && handleCommanderKey(event, modifiers: modifiers)
         }
         return true
+    }
+
+    /// Touches de Total Commander (option du menu Édition). F2, F5 et F6 sont déjà des raccourcis de menu.
+    private func handleCommanderKey(_ event: NSEvent, modifiers: NSEvent.ModifierFlags) -> Bool {
+        let keypad = event.modifierFlags.contains(.numericPad)
+        switch event.keyCode {
+        case 99 where modifiers.isEmpty: quickLook(nil) // F3 : voir
+        case 118 where modifiers.isEmpty: editSelection(nil) // F4 : modifier
+        case 97 where modifiers == .shift: renameSelection(nil) // ⇧F6 : renommer
+        case 98 where modifiers.isEmpty: newFolder(nil) // F7
+        case 100 where modifiers.isEmpty: moveToTrash(nil) // F8
+        case 69 where keypad && modifiers.isEmpty: selectByPattern(nil) // + : sélectionner
+        case 78 where keypad && modifiers.isEmpty: deselectByPattern(nil) // − : désélectionner
+        case 67 where keypad && modifiers.isEmpty: invertSelection(nil) // * : inverser
+        default: return false
+        }
+        return true
+    }
+
+    /// F4 : ouvre les fichiers sélectionnés dans l'éditeur de texte par défaut.
+    @objc func editSelection(_ sender: Any?) {
+        let files = selectedItems.filter { !$0.isNavigableDirectory }.map(\.url).filter(\.isFileURL)
+        guard !files.isEmpty, let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) else { NSSound.beep(); return }
+        NSWorkspace.shared.open(files, withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
     }
 
     // MARK: Menu contextuel
