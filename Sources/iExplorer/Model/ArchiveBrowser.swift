@@ -19,7 +19,7 @@ enum ArchiveBrowser {
         let name = url.lastPathComponent.lowercased()
         if name.hasSuffix(".iso") { return false }
         let isTar = name.contains(".tar.") || ["tgz", "tbz", "tbz2", "txz"].contains(url.pathExtension.lowercased())
-        return isTar || !["gz", "bz2", "xz"].contains(url.pathExtension.lowercased())
+        return isTar || name.hasSuffix(".tzst") || !["gz", "bz2", "xz", "zst", "lz4"].contains(url.pathExtension.lowercased())
     }
 
     /// Dossier du cache pour cette version de l'archive (chemin, taille et date en font l'empreinte).
@@ -75,10 +75,15 @@ enum ArchiveBrowser {
         DispatchQueue.global(qos: .userInitiated).async {
             var failure: String?
             do {
-                try process.run()
-                let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                process.waitUntilExit()
-                if process.terminationStatus != 0 { failure = message.trimmingCharacters(in: .whitespacesAndNewlines) }
+                if let codec = StreamCodec(archive: archive) {
+                    // .tar.zst et .tar.lz4 : décompression embarquée, tar lit le flux.
+                    try codec.extractTar(archive, into: staging, extraArguments: ["--exclude", "__MACOSX"], job: job)
+                } else {
+                    try process.run()
+                    let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                    process.waitUntilExit()
+                    if process.terminationStatus != 0 { failure = message.trimmingCharacters(in: .whitespacesAndNewlines) }
+                }
                 if failure == nil {
                     try fm.moveItem(at: staging, to: root)
                     try archive.standardizedFileURL.path.write(to: entry.appendingPathComponent(sourceFile), atomically: true, encoding: .utf8)

@@ -1,7 +1,7 @@
 import AppKit
 
 enum ArchiveFormat: Int, CaseIterable {
-    case zip, tarGz, tarBz2, tarXz
+    case zip, tarGz, tarBz2, tarXz, tarZst, tarLz4
 
     var fileExtension: String {
         switch self {
@@ -9,6 +9,17 @@ enum ArchiveFormat: Int, CaseIterable {
         case .tarGz: "tar.gz"
         case .tarBz2: "tar.bz2"
         case .tarXz: "tar.xz"
+        case .tarZst: "tar.zst"
+        case .tarLz4: "tar.lz4"
+        }
+    }
+
+    /// zstd et LZ4 sont embarqués : le tar du système ne les connaît pas.
+    var codec: StreamCodec? {
+        switch self {
+        case .tarZst: .zstd
+        case .tarLz4: .lz4
+        default: nil
         }
     }
 }
@@ -16,7 +27,7 @@ enum ArchiveFormat: Int, CaseIterable {
 /// Compression et décompression avec les outils du système (bsdtar / libarchive, gzip, bzip2).
 extension FileOperationCenter {
     private static let archiveSuffixes = ["zip", "tar", "tgz", "tbz", "tbz2", "txz", "tar.gz", "tar.bz2", "tar.xz", "tar.zst",
-                                          "gz", "bz2", "xz", "7z", "rar", "cpio", "xar", "iso", "jar", "cab", "lha", "lzh"]
+                                          "gz", "bz2", "xz", "tzst", "tar.lz4", "zst", "lz4", "7z", "rar", "cpio", "xar", "iso", "jar", "cab", "lha", "lzh"]
 
     static func isArchive(_ url: URL) -> Bool {
         let name = url.lastPathComponent.lowercased()
@@ -31,7 +42,104 @@ extension FileOperationCenter {
         let target = uniqueURL(for: directory.appendingPathComponent("\(base).\(format.fileExtension)"), suffix: "")
         let arguments = ["-a", "-c", "--no-mac-metadata", "-f", target.path, "-C", directory.path, "--"] + urls.map(\.lastPathComponent)
         let title = "Compression de « \(urls.count == 1 ? first.lastPathComponent : "\(urls.count) éléments") »"
+        if let codec = format.codec {
+            compressStreamed(urls, codec: codec, target: target, title: title, undoManager: undoManager, completion: completion)
+            return
+        }
         runArchiveTool("/usr/bin/tar", arguments, title: title, output: target, undoManager: undoManager, completion: completion)
+    }
+
+    // MARK: zstd et LZ4 (embarqués)
+
+    private func compressStreamed(_ urls: [URL], codec: StreamCodec, target: URL, title: String, undoManager: UndoManager?,
+                                  completion: @escaping (URL?) -> Void) {
+        let job = FileJob(title: title)
+        job.setStatus(target.lastPathComponent)
+        job.setTotal(urls.reduce(Int64(0)) { $0 + Self.allocatedSize(of: $1) })
+        addJob(job)
+        let directory = target.deletingLastPathComponent()
+        DispatchQueue.global(qos: .userInitiated).async {
+            var failure: String?
+            do {
+                job.waitIfPaused()
+                try codec.createTar(urls.map(\.lastPathComponent), in: directory, to: target, job: job)
+            } catch is CancellationError {
+            } catch {
+                if !job.isCancelled { failure = error.localizedDescription }
+            }
+            DispatchQueue.main.async {
+                self.removeJob(job)
+                guard failure == nil, !job.isCancelled else {
+                    try? FileManager.default.removeItem(at: target)
+                    if let failure { self.showError("\(title) a échoué.\n\(failure)") }
+                    completion(nil)
+                    return
+                }
+                undoManager?.registerUndo(withTarget: self) { $0.trash([target], undoManager: undoManager, actionName: "Archive") }
+                undoManager?.setActionName("Compression")
+                completion(target)
+            }
+        }
+    }
+
+    private func extractStreamed(_ archive: URL, codec: StreamCodec, base: String, into directory: URL, title: String,
+                                 undoManager: UndoManager?, completion: @escaping (URL?) -> Void) {
+        let name = archive.lastPathComponent.lowercased()
+        // Un fichier seul compressé (.zst, .lz4 sans tar) est restitué tel quel.
+        let isTar = name.contains(".tar.") || name.hasSuffix(".tzst")
+        let target = uniqueURL(for: directory.appendingPathComponent(base), suffix: "")
+        do {
+            if isTar { try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false) }
+            else { FileManager.default.createFile(atPath: target.path, contents: nil) }
+        } catch {
+            showError(error.localizedDescription)
+            return
+        }
+        let job = FileJob(title: title)
+        job.setStatus(archive.lastPathComponent)
+        job.setTotal(Int64((try? archive.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0))
+        addJob(job)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var failure: String?
+            do {
+                job.waitIfPaused()
+                if isTar {
+                    try codec.extractTar(archive, into: target, job: job)
+                } else {
+                    let input = try FileHandle(forReadingFrom: archive), output = try FileHandle(forWritingTo: target)
+                    defer { try? input.close(); try? output.close() }
+                    try codec.decompress(from: input, to: output, progress: { job.waitIfPaused(); job.setDone($0) }, isCancelled: { job.isCancelled })
+                }
+            } catch is CancellationError {
+            } catch {
+                if !job.isCancelled { failure = error.localizedDescription }
+            }
+            DispatchQueue.main.async {
+                self.removeJob(job)
+                guard failure == nil, !job.isCancelled else {
+                    try? FileManager.default.removeItem(at: target)
+                    if let failure { self.showError("\(title) a échoué.\n\(failure)") }
+                    completion(nil)
+                    return
+                }
+                let result = isTar ? self.flattenSingleItem(target) : target
+                undoManager?.registerUndo(withTarget: self) { $0.trash([result], undoManager: undoManager, actionName: "Décompression") }
+                undoManager?.setActionName("Décompression")
+                completion(result)
+            }
+        }
+    }
+
+    /// Taille d'un fichier ou d'un dossier (progression approximative de la compression).
+    static func allocatedSize(of url: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .isDirectoryKey]
+        guard (try? url.resourceValues(forKeys: keys))?.isDirectory == true else {
+            return Int64((try? url.resourceValues(forKeys: keys))?.fileSize ?? 0)
+        }
+        var total: Int64 = 0
+        let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey])
+        while let item = enumerator?.nextObject() as? URL { total += Int64((try? item.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) }
+        return total
     }
 
     // MARK: Archives chiffrées
@@ -89,6 +197,10 @@ extension FileOperationCenter {
             break
         }
         let title = "Décompression de « \(archive.lastPathComponent) »"
+        if let codec = StreamCodec(archive: archive) {
+            extractStreamed(archive, codec: codec, base: base, into: directory, title: title, undoManager: undoManager, completion: completion)
+            return
+        }
         let isTar = lower.contains(".tar.") || ["tgz", "tbz", "tbz2", "txz"].contains(archive.pathExtension.lowercased())
         // Fichier unique compressé (.gz / .bz2 sans tar) : on restitue le fichier.
         if !isTar, let tool = ["gz": "/usr/bin/gzip", "bz2": "/usr/bin/bzip2"][archive.pathExtension.lowercased()] {
