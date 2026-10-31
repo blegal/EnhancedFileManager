@@ -79,6 +79,7 @@ enum MainMenu {
             item("Ouvrir dans le Terminal", #selector(Panel.openInTerminal(_:)), "t", [.command, .option]),
             item("Ajouter aux favoris", #selector(Panel.addToFavorites(_:)), "t", [.command, .control]),
             item("Partager…", #selector(Panel.shareSelection(_:))),
+            item("Sommes de contrôle…", #selector(Panel.showChecksums(_:)), "k", [.command, .control]),
             separator(),
             item("Renommer", #selector(Panel.renameSelection(_:)), functionKey(NSF2FunctionKey), []),
             item("Renommer par lot…", #selector(Panel.batchRename(_:)), "r", [.command, .control]),

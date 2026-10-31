@@ -1524,6 +1524,10 @@ final class PanelViewController: NSViewController {
                 menu.addItem(tagsMenuItem())
                 if let actions = customActionsMenuItem() { menu.addItem(actions) }
                 menu.addItem(shareMenuItem(for: selection.map(\.url)))
+                if selection.contains(where: { !$0.isNavigableDirectory }) {
+                    let isList = selection.count == 1 && Checksums.listExtensions.contains(selection[0].url.pathExtension.lowercased())
+                    add(isList ? "Vérifier les sommes de contrôle" : "Sommes de contrôle…", #selector(showChecksums(_:)), "number")
+                }
                 let name = selection.count == 1 ? "« \(selection[0].name) »" : "\(selection.count) éléments"
                 add("Compresser \(name)", #selector(compressSelection(_:)), "archivebox")
                 let formats = NSMenuItem(title: "Compresser au format", action: nil, keyEquivalent: "")
@@ -1623,9 +1627,11 @@ extension PanelViewController: NSMenuItemValidation {
                                       #selector(runCustomAction(_:)),
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
                                       #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:)),
-                                      #selector(shareSelection(_:))]
+                                      #selector(shareSelection(_:)), #selector(showChecksums(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
+        case #selector(showChecksums(_:)):
+            return selectedItems.contains { !$0.isNavigableDirectory }
         case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)), #selector(moveToTrash(_:)),
              #selector(openSelection(_:)), #selector(quickLook(_:)), #selector(shareSelection(_:)), #selector(selectSameType(_:)):
             return hasSelection
