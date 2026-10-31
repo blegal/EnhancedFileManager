@@ -307,6 +307,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self?.activePanel }
     private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self?.activePanel }
     private weak var terminalButton: NSButton?
+    private weak var inspectorButton: NSButton?
+    private weak var hiddenButton: NSButton?
     private let workSplit = NSSplitViewController()
     private let terminalController = TerminalPanelController()
     private let terminalItem: NSSplitViewItem
@@ -364,7 +366,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             window.center()
         }
 
-        let toolbar = NSToolbar(identifier: "MainToolbar.v10")
+        let toolbar = NSToolbar(identifier: "MainToolbar.v11")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
@@ -403,6 +405,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         window.initialFirstResponder = activePanel.tableView
         NotificationCenter.default.addObserver(forName: GitService.enabledChanged, object: nil, queue: .main) { [weak self] _ in
             self?.gitButton?.state = GitService.isEnabled ? .on : .off
+        }
+        NotificationCenter.default.addObserver(forName: Preferences.showHiddenChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.hiddenButton?.state = Preferences.showHiddenFiles ? .on : .off
         }
     }
 
@@ -475,6 +480,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         let key = inspectorPreferenceKey(layout: layout)
         // En panneau unique, l'éditeur occupe la place de l'inspecteur (sauf choix contraire).
         let visible = defaults.object(forKey: key) as? Bool ?? (layout == 1 && !EditorViewController.isEnabled)
+        inspectorButton?.state = visible ? .on : .off
         guard inspectorItem.isCollapsed == visible else { return }
         if animated { inspectorItem.animator().isCollapsed = !visible } else { inspectorItem.isCollapsed = !visible }
         if visible { updateInspector(activePanel) }
@@ -651,13 +657,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         // Par groupes : affichage du panneau, fichiers, outils, fenêtre.
         [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace,
          .viewMode, .layout, .hidden, .syncNavigation, .space,
-         .newFolder, .quickLook, .trash, .space,
-         .git, .terminal, .connect, .space,
+         .trash, .git, .terminal, .connect, .space,
          .inspector, .appearance, .updates]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar) + [.back, .forward, .diskUsage, .colorTheme, .iconTheme, .flexibleSpace, .space]
+        toolbarDefaultItemIdentifiers(toolbar) + [.back, .forward, .diskUsage, .newFolder, .quickLook, .colorTheme, .iconTheme, .flexibleSpace, .space]
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
@@ -690,9 +695,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         case .newFolder: return button("Nouveau dossier", "folder.badge.plus", #selector(PanelViewController.newFolder(_:)), tip: "Nouveau dossier (⇧⌘N)")
         case .quickLook: return button("Coup d’œil", "eye", #selector(PanelViewController.quickLook(_:)), tip: "Coup d’œil sur la sélection (Espace ou ⌘Y)")
         case .trash: return button("Corbeille", "trash", #selector(PanelViewController.moveToTrash(_:)), tip: "Placer la sélection dans la corbeille (⌘⌫)")
-        case .hidden: return button("Fichiers cachés", "doc.badge.ellipsis", #selector(AppDelegate.toggleHiddenFiles(_:)), tip: "Afficher ou masquer les fichiers cachés (⇧⌘.)")
+        case .hidden, .inspector:
+            // Boutons à bascule : coloré quand actif (fichiers cachés affichés, inspecteur ouvert).
+            let isHidden = identifier == .hidden
+            let toggle = ToolbarToggle(image: NSImage(systemSymbolName: isHidden ? "doc.badge.ellipsis" : "info.circle",
+                                                      accessibilityDescription: isHidden ? "Fichiers cachés" : "Inspecteur")!,
+                                       target: isHidden ? nil : self,
+                                       action: isHidden ? #selector(AppDelegate.toggleHiddenFiles(_:)) : #selector(toggleInspectorPane(_:)))
+            toggle.setButtonType(.pushOnPushOff)
+            toggle.bezelStyle = .toolbar
+            toggle.state = (isHidden ? Preferences.showHiddenFiles : !inspectorItem.isCollapsed) ? .on : .off
+            toggle.toolTip = isHidden ? "Afficher ou masquer les fichiers cachés (⇧⌘.)" : "Afficher ou masquer l’inspecteur (⌥⌘I)"
+            if isHidden { hiddenButton = toggle } else { inspectorButton = toggle }
+            let item = NSToolbarItem(itemIdentifier: identifier)
+            item.view = toggle
+            item.label = isHidden ? "Fichiers cachés" : "Inspecteur"
+            return item
         case .connect: return button("Se connecter au serveur", "network", #selector(connectToServer(_:)), tip: "Se connecter à un serveur SFTP, SMB, WebDAV… (⌘K)")
-        case .inspector: return button("Inspecteur", "info.circle", #selector(toggleInspectorPane(_:)), tip: "Afficher ou masquer l’inspecteur (⌥⌘I)")
         case .updates:
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = UpdateStatusButton()
@@ -701,7 +720,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         case .git, .terminal:
             // Boutons à bascule : leur état (activé / désactivé) est visible dans la barre.
             let isGit = identifier == .git
-            let toggle = NSButton(image: NSImage(systemSymbolName: isGit ? "arrow.triangle.branch" : "apple.terminal",
+            let toggle = ToolbarToggle(image: NSImage(systemSymbolName: isGit ? "arrow.triangle.branch" : "apple.terminal",
                                                  accessibilityDescription: isGit ? "État Git" : "Terminal")!,
                                   target: isGit ? nil : self,
                                   action: isGit ? #selector(AppDelegate.toggleGit(_:)) : #selector(toggleTerminal(_:)))
@@ -715,7 +734,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.label = isGit ? "Git" : "Terminal"
             return item
         case .syncNavigation:
-            let toggle = NSButton(image: NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Navigation synchronisée")!,
+            let toggle = ToolbarToggle(image: NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Navigation synchronisée")!,
                                   target: self, action: #selector(toggleSyncNavigation(_:)))
             toggle.setButtonType(.pushOnPushOff)
             toggle.bezelStyle = .toolbar
@@ -727,7 +746,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.label = "Synchro"
             return item
         case .diskUsage:
-            let toggle = NSButton(image: NSImage(systemSymbolName: "chart.pie", accessibilityDescription: "Occupation du disque")!,
+            let toggle = ToolbarToggle(image: NSImage(systemSymbolName: "chart.pie", accessibilityDescription: "Occupation du disque")!,
                                   target: self, action: #selector(toggleDiskUsageFromToolbar(_:)))
             toggle.setButtonType(.pushOnPushOff)
             toggle.bezelStyle = .toolbar
@@ -1107,5 +1126,29 @@ private final class SplitLimits: NSObject, NSSplitViewDelegate {
 
     func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposed: CGFloat, ofSubviewAt index: Int) -> CGFloat {
         min(proposed, end(splitView.subviews[index + 1], splitView) - minimum)
+    }
+}
+
+/// Bouton à bascule de la barre d'outils : son symbole prend la couleur d'accent quand il est actif.
+final class ToolbarToggle: NSButton {
+    override var state: NSControl.StateValue {
+        didSet { updateTint() }
+    }
+
+    override func setNextState() {
+        super.setNextState()
+        updateTint()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateTint()
+    }
+
+    /// La barre d'outils ignore `contentTintColor` sur un bouton enfoncé : la couleur est imposée au symbole.
+    private func updateTint() {
+        let on = state == .on
+        contentTintColor = on ? .controlAccentColor : nil
+        symbolConfiguration = on ? NSImage.SymbolConfiguration(paletteColors: [.controlAccentColor]) : nil
     }
 }

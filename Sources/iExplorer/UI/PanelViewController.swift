@@ -133,7 +133,7 @@ final class PanelViewController: NSViewController {
     /// Précédent / suivant de l'onglet, en haut à droite du panneau (appui long : tout l'historique).
     private let navigationControl = NSSegmentedControl()
     /// Bascule fichiers / occupation du disque, à gauche des flèches.
-    private let diskUsageToggle = NSButton()
+    private let diskUsageToggle = ToolbarToggle()
     private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self }
     private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self }
     private var gitStatus: GitRepositoryStatus?
