@@ -772,6 +772,11 @@ final class JobsView: NSView {
     private var rows: [ObjectIdentifier: JobRowView] = [:]
     private var timer: Timer?
     private var collapsed: NSLayoutConstraint!
+    /// En-tête : résumé, « à la suite », tout mettre en pause, opérations terminées.
+    private let summary = NSTextField(labelWithString: "")
+    private let sequential = NSButton(checkboxWithTitle: "À la suite (une à la fois)", target: nil, action: nil)
+    private let pauseAll = NSButton(title: "Tout mettre en pause", target: nil, action: nil)
+    private let history = NSPopUpButton(frame: .zero, pullsDown: true)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -781,6 +786,23 @@ final class JobsView: NSView {
         stack.alignment = .leading
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 8, left: 14, bottom: 10, right: 14)
+        summary.font = .systemFont(ofSize: 12, weight: .semibold)
+        sequential.controlSize = .small
+        sequential.font = .systemFont(ofSize: 11)
+        sequential.target = self
+        sequential.action = #selector(toggleSequential)
+        sequential.toolTip = "Les nouvelles opérations attendent la fin des précédentes"
+        pauseAll.controlSize = .small
+        pauseAll.bezelStyle = .accessoryBarAction
+        pauseAll.target = self
+        pauseAll.action = #selector(togglePauseAll)
+        history.controlSize = .small
+        history.bezelStyle = .accessoryBarAction
+        history.isBordered = false
+        let header = NSStackView(views: [summary, NSView(), history, sequential, pauseAll])
+        header.spacing = 10
+        stack.addArrangedSubview(header)
+        header.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
         for view in [separator, stack] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
@@ -805,6 +827,46 @@ final class JobsView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    private func updateHeader() {
+        let center = FileOperationCenter.shared
+        let jobs = center.jobs
+        let waiting = jobs.filter(\.isQueued).count
+        let remaining = jobs.reduce(Int64(0)) { total, job in
+            let snapshot = job.snapshot
+            return job.countsItems ? total : total + max(0, snapshot.total - snapshot.done)
+        }
+        var parts = ["\(jobs.count) opération\(jobs.count > 1 ? "s" : "")"]
+        if waiting > 0 { parts.append("\(waiting) en attente") }
+        if remaining > 0 { parts.append("\(Format.size(remaining)) restants") }
+        summary.stringValue = parts.joined(separator: " · ")
+        sequential.state = FileOperationCenter.sequential ? .on : .off
+        let allPaused = !jobs.isEmpty && jobs.allSatisfy(\.isPaused)
+        pauseAll.title = allPaused ? "Tout reprendre" : "Tout mettre en pause"
+        history.removeAllItems()
+        history.addItem(withTitle: "Terminées : \(center.finished.count)")
+        history.isHidden = center.finished.isEmpty
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        for entry in center.finished {
+            history.addItem(withTitle: "\(formatter.string(from: entry.date))  \(entry.title)\(entry.cancelled ? " — annulée" : "")")
+            history.lastItem?.isEnabled = false
+        }
+        history.menu?.addItem(.separator())
+        let clear = NSMenuItem(title: "Effacer la liste", action: #selector(clearHistory), keyEquivalent: "")
+        clear.target = self
+        history.menu?.addItem(clear)
+    }
+
+    @objc private func toggleSequential() { FileOperationCenter.sequential = sequential.state == .on }
+
+    @objc private func togglePauseAll() {
+        let jobs = FileOperationCenter.shared.jobs
+        FileOperationCenter.shared.setAllPaused(!(!jobs.isEmpty && jobs.allSatisfy(\.isPaused)))
+        rows.values.forEach { $0.update() }
+    }
+
+    @objc private func clearHistory() { FileOperationCenter.shared.clearFinished() }
+
     private func refresh() {
         let jobs = FileOperationCenter.shared.jobs
         let ids = Set(jobs.map(ObjectIdentifier.init))
@@ -818,6 +880,15 @@ final class JobsView: NSView {
             stack.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
         }
+        // Les lignes suivent l'ordre de la file (« monter » réordonne).
+        for (index, job) in jobs.enumerated() {
+            if let row = rows[ObjectIdentifier(job)], stack.arrangedSubviews.firstIndex(of: row) != index + 1 {
+                stack.removeArrangedSubview(row)
+                stack.insertArrangedSubview(row, at: index + 1)
+            }
+            rows[ObjectIdentifier(job)]?.queuePosition = job.isQueued ? jobs[..<index].filter(\.isQueued).count + 1 : nil
+        }
+        updateHeader()
         isHidden = jobs.isEmpty
         collapsed.isActive = jobs.isEmpty
         if jobs.isEmpty {
@@ -838,6 +909,9 @@ private final class JobRowView: NSView {
     private let detail = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
     private let pauseButton = NSButton()
+    private let upButton = NSButton()
+    /// Rang dans la file d'attente (mode « à la suite ») ; `nil` si l'opération tourne.
+    var queuePosition: Int? { didSet { if queuePosition != oldValue { updatePauseButton(); update() } } }
     /// Débit lissé (unités par seconde) et dernier échantillon.
     private var rate: Double = 0
     private var lastSample: (time: Date, done: Int64)?
@@ -866,9 +940,16 @@ private final class JobRowView: NSView {
         pauseButton.contentTintColor = .secondaryLabelColor
         pauseButton.target = self
         pauseButton.action = #selector(togglePause)
+        upButton.image = NSImage(systemSymbolName: "arrow.up.circle.fill", accessibilityDescription: "Monter dans la file")
+        upButton.isBordered = false
+        upButton.contentTintColor = .secondaryLabelColor
+        upButton.toolTip = "Monter dans la file"
+        upButton.target = self
+        upButton.action = #selector(moveJobUp)
+        upButton.isHidden = true
         updatePauseButton()
 
-        for view in [title, detail, progress, pauseButton, cancel] as [NSView] {
+        for view in [title, detail, progress, pauseButton, upButton, cancel] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -880,6 +961,8 @@ private final class JobRowView: NSView {
             progress.leadingAnchor.constraint(equalTo: leadingAnchor),
             progress.trailingAnchor.constraint(equalTo: pauseButton.leadingAnchor, constant: -8),
             pauseButton.trailingAnchor.constraint(equalTo: cancel.leadingAnchor, constant: -6),
+            upButton.trailingAnchor.constraint(equalTo: pauseButton.leadingAnchor, constant: -4),
+            upButton.centerYAnchor.constraint(equalTo: progress.centerYAnchor),
             pauseButton.centerYAnchor.constraint(equalTo: progress.centerYAnchor),
             detail.topAnchor.constraint(equalTo: progress.bottomAnchor, constant: 2),
             detail.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -893,6 +976,13 @@ private final class JobRowView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func update() {
+        if let queuePosition {
+            progress.doubleValue = 0
+            progress.isIndeterminate = false
+            progress.stopAnimation(nil)
+            detail.stringValue = "En attente · \(queuePosition == 1 ? "prochaine" : "\(queuePosition)e dans la file")"
+            return
+        }
         let snapshot = job.snapshot
         if snapshot.total > 0 {
             if progress.isIndeterminate { progress.stopAnimation(nil); progress.isIndeterminate = false }
@@ -935,13 +1025,25 @@ private final class JobRowView: NSView {
         durationFormatter.string(from: max(1, seconds)) ?? ""
     }
 
+    @objc private func moveJobUp() { FileOperationCenter.shared.moveUp(job) }
+
     @objc private func togglePause() {
+        if queuePosition != nil {
+            FileOperationCenter.shared.startNow(job)
+            return
+        }
         job.setPaused(!job.isPaused)
         updatePauseButton()
         update()
     }
 
     private func updatePauseButton() {
+        upButton.isHidden = (queuePosition ?? 1) <= 1
+        if queuePosition != nil {
+            pauseButton.image = NSImage(systemSymbolName: "play.circle.fill", accessibilityDescription: "Démarrer maintenant")
+            pauseButton.toolTip = "Démarrer maintenant, sans attendre son tour"
+            return
+        }
         let paused = job.isPaused
         pauseButton.image = NSImage(systemSymbolName: paused ? "play.circle.fill" : "pause.circle.fill",
                                     accessibilityDescription: paused ? "Reprendre" : "Mettre en pause")

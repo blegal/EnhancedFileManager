@@ -46,11 +46,13 @@ extension FileOperationCenter {
             } else if existing.contains(name) {
                 let choice: ConflictChoice
                 if let applyToAll { choice = applyToAll } else {
-                    let answer = askConflict(name: name, folder: destination, kind: kind, hasMore: remaining > 0)
+                    let answer = askConflict(source: source, target: destination.appendingPathComponent(name), folder: destination,
+                                             kind: kind, hasMore: remaining > 0)
                     choice = answer.choice
                     if answer.applyToAll { applyToAll = choice }
                 }
-                switch choice {
+                // Sur un serveur, dates et tailles ne sont pas lues ici : ces choix reviennent à ignorer.
+                switch Self.resolve(choice, source: source, target: destination.appendingPathComponent(name)) {
                 case .replace:
                     let existingURL = destination.appendingPathComponent(name)
                     do {
@@ -61,7 +63,7 @@ extension FileOperationCenter {
                         continue
                     }
                 case .keepBoth: name = uniqueName(name, in: existing, suffix: "")
-                case .skip: continue
+                case .skip, .keepNewer, .replaceIfDifferent: continue
                 case .stop: job.cancel(); continue
                 }
             }

@@ -107,6 +107,8 @@ extension FileOperationCenter {
         DispatchQueue.global(qos: .userInitiated).async {
             var failure: String?
             do {
+                job.waitIfPaused() // attend son tour en mode « à la suite »
+                if job.isCancelled { throw CancellationError() }
                 try process.run()
                 let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                 process.waitUntilExit()

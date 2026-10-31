@@ -12,6 +12,8 @@ final class FileJob {
     private let lock = NSLock()
     private let pauseCondition = NSCondition()
     private var paused = false
+    /// En file d'attente (mode « à la suite ») : attend que les opérations précédentes finissent.
+    private var queued = false
     private var cancelled = false
     private var done: Int64 = 0
     private var total: Int64 = 0
@@ -23,6 +25,7 @@ final class FileJob {
     init(title: String) { self.title = title }
 
     var isCancelled: Bool { lock.withLock { cancelled } }
+    private var isCancelledUnlocked: Bool { lock.withLock { cancelled } }
 
     func cancel() {
         let action = lock.withLock { () -> (() -> Void)? in
@@ -30,12 +33,21 @@ final class FileJob {
             return cancelAction
         }
         setPaused(false)
+        setQueued(false)
         action?()
     }
 
     // MARK: Pause
 
     var isPaused: Bool { pauseCondition.withLock { paused } }
+    var isQueued: Bool { pauseCondition.withLock { queued } }
+
+    func setQueued(_ value: Bool) {
+        pauseCondition.lock()
+        queued = value
+        pauseCondition.broadcast()
+        pauseCondition.unlock()
+    }
 
     func setPaused(_ value: Bool) {
         pauseCondition.lock()
@@ -47,7 +59,7 @@ final class FileJob {
     /// Bloque le fil de copie tant que l'opération est en pause.
     func waitIfPaused() {
         pauseCondition.lock()
-        while paused { pauseCondition.wait() }
+        while (paused || queued) && !isCancelledUnlocked { pauseCondition.wait() }
         pauseCondition.unlock()
     }
 
@@ -60,7 +72,7 @@ final class FileJob {
     var snapshot: (done: Int64, total: Int64, status: String) { lock.withLock { (done, total, status) } }
 }
 
-enum ConflictChoice { case replace, keepBoth, skip, stop }
+enum ConflictChoice { case replace, keepBoth, skip, keepNewer, replaceIfDifferent, stop }
 
 /// Point d'entrée unique des opérations sur les fichiers (copie, déplacement,
 /// corbeille, renommage…), avec annulation via `UndoManager`.
@@ -118,13 +130,63 @@ final class FileOperationCenter {
 
     var hasActiveJobs: Bool { !jobs.isEmpty }
 
+    /// Opérations terminées récemment (la plus récente en premier).
+    private(set) var finished: [(title: String, date: Date, cancelled: Bool)] = []
+
+    /// « À la suite » : une seule opération à la fois, les autres attendent leur tour.
+    static var sequential: Bool {
+        get { UserDefaults.standard.bool(forKey: "sequentialJobs") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "sequentialJobs")
+            shared.startNextQueuedJob()
+        }
+    }
+
     func addJob(_ job: FileJob) {
+        if Self.sequential, jobs.contains(where: { !$0.isQueued }) { job.setQueued(true) }
         jobs.append(job)
         NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
     }
 
     func removeJob(_ job: FileJob) {
         jobs.removeAll { $0 === job }
+        finished.insert((job.title, Date(), job.isCancelled), at: 0)
+        if finished.count > 20 { finished.removeLast() }
+        startNextQueuedJob()
+        NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
+    }
+
+    func clearFinished() {
+        finished = []
+        NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
+    }
+
+    /// Lance la prochaine opération en attente (toutes si le mode « à la suite » est coupé).
+    func startNextQueuedJob() {
+        guard Self.sequential else {
+            jobs.filter(\.isQueued).forEach { $0.setQueued(false) }
+            NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
+            return
+        }
+        if !jobs.contains(where: { !$0.isQueued }) { jobs.first?.setQueued(false) }
+        NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
+    }
+
+    /// Fait passer une opération en attente avant la précédente.
+    func moveUp(_ job: FileJob) {
+        guard let index = jobs.firstIndex(where: { $0 === job }), index > 0, jobs[index - 1].isQueued else { return }
+        jobs.swapAt(index, index - 1)
+        NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
+    }
+
+    /// Démarre tout de suite une opération en attente, sans attendre son tour.
+    func startNow(_ job: FileJob) {
+        job.setQueued(false)
+        NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
+    }
+
+    func setAllPaused(_ paused: Bool) {
+        jobs.forEach { $0.setPaused(paused) }
         NotificationCenter.default.post(name: Self.jobsChanged, object: nil)
     }
 
@@ -157,11 +219,11 @@ final class FileOperationCenter {
                 }
                 let choice: ConflictChoice
                 if let applyToAll { choice = applyToAll } else {
-                    let answer = askConflict(name: target.lastPathComponent, folder: destination, kind: kind, hasMore: remaining > 0)
+                    let answer = askConflict(source: source, target: target, folder: destination, kind: kind, hasMore: remaining > 0)
                     choice = answer.choice
                     if answer.applyToAll { applyToAll = choice }
                 }
-                switch choice {
+                switch Self.resolve(choice, source: source, target: target) {
                 case .replace:
                     do {
                         try fm.trashItem(at: target, resultingItemURL: nil)
@@ -172,7 +234,7 @@ final class FileOperationCenter {
                         }
                     }
                 case .keepBoth: target = uniqueURL(for: target, suffix: "")
-                case .skip: continue
+                case .skip, .keepNewer, .replaceIfDifferent: continue
                 case .stop: job.cancel(); continue
                 }
             }
@@ -430,27 +492,86 @@ final class FileOperationCenter {
         DispatchQueue.main.sync { showError(message) }
     }
 
-    func askConflict(name: String, folder: URL, kind: TransferKind, hasMore: Bool) -> (choice: ConflictChoice, applyToAll: Bool) {
+    /// « Garder le plus récent » et « Remplacer si la taille diffère » deviennent remplacer ou ignorer, fichier par fichier.
+    static func resolve(_ choice: ConflictChoice, source: URL, target: URL) -> ConflictChoice {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
+        let from = try? source.resourceValues(forKeys: keys), to = try? target.resourceValues(forKeys: keys)
+        switch choice {
+        case .keepNewer:
+            return (from?.contentModificationDate ?? .distantPast) > (to?.contentModificationDate ?? .distantPast) ? .replace : .skip
+        case .replaceIfDifferent:
+            return from?.fileSize != to?.fileSize ? .replace : .skip
+        default:
+            return choice
+        }
+    }
+
+    /// Dialogue de conflit : les deux éléments comparés, cinq façons de faire, et « appliquer aux suivants ».
+    func askConflict(source: URL, target: URL, folder: URL, kind: TransferKind, hasMore: Bool) -> (choice: ConflictChoice, applyToAll: Bool) {
         DispatchQueue.main.sync {
+            let keys: Set<URLResourceKey> = [.contentModificationDateKey, .totalFileSizeKey, .fileSizeKey]
+            let from = try? source.resourceValues(forKeys: keys), to = try? target.resourceValues(forKeys: keys)
+            let fromDate = from?.contentModificationDate, toDate = to?.contentModificationDate
+            func describe(_ title: String, _ values: URLResourceValues?, newer: Bool?) -> NSView {
+                let size = (values?.totalFileSize ?? values?.fileSize).map { Format.size(Int64($0)) } ?? "—"
+                let date = (values?.contentModificationDate).map { Format.dateFormatter.string(from: $0) } ?? "—"
+                let header = NSTextField(labelWithString: title)
+                header.font = .systemFont(ofSize: 10, weight: .semibold)
+                header.textColor = .secondaryLabelColor
+                let info = NSTextField(labelWithString: "\(size)\nmodifié : \(date)")
+                info.font = .systemFont(ofSize: 12)
+                var views: [NSView] = [header, info]
+                if let newer {
+                    let badge = NSTextField(labelWithString: newer ? "Plus récent" : "Plus ancien")
+                    badge.font = .systemFont(ofSize: 11, weight: .medium)
+                    badge.textColor = newer ? .systemGreen : .secondaryLabelColor
+                    views.append(badge)
+                }
+                let stack = NSStackView(views: views)
+                stack.orientation = .vertical
+                stack.alignment = .leading
+                stack.spacing = 2
+                return stack
+            }
+            let comparable = fromDate != nil && toDate != nil && fromDate != toDate
+            let newer = comparable ? fromDate! > toDate! : nil
+            let compare = NSStackView(views: [describe(kind == .copy ? "À COPIER" : "À DÉPLACER", from, newer: newer),
+                                              describe("DÉJÀ PRÉSENT", to, newer: newer.map { !$0 })])
+            compare.distribution = .fillEqually
+            compare.spacing = 20
+
+            let options: [(String, ConflictChoice)] = [
+                ("Remplacer (l’élément existant va à la corbeille)", .replace),
+                ("Garder les deux", .keepBoth),
+                ("Ignorer", .skip),
+                ("Garder le plus récent", .keepNewer),
+                ("Remplacer seulement si la taille diffère", .replaceIfDifferent),
+            ]
+            let radios = options.map { NSButton(radioButtonWithTitle: $0.0, target: nil, action: nil) }
+            radios[0].state = .on
+            // Les boutons radio d'une même vue s'excluent ; on les relie à une action commune pour plus de sûreté.
+            let group = RadioGroup(radios)
+            let all = NSButton(checkboxWithTitle: "Appliquer aux conflits suivants", target: nil, action: nil)
+            all.isHidden = !hasMore
+            let stack = NSStackView(views: [compare] + radios + [all])
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 6
+            stack.setCustomSpacing(14, after: compare)
+            stack.setCustomSpacing(12, after: radios.last!)
+            stack.frame = NSRect(x: 0, y: 0, width: 380, height: stack.fittingSize.height)
+
             let alert = NSAlert()
-            alert.messageText = "Un élément nommé « \(name) » existe déjà dans « \(folder.lastPathComponent) »."
-            alert.informativeText = "Voulez-vous le remplacer par celui que vous \(kind == .copy ? "copiez" : "déplacez") ? L’élément existant sera placé dans la corbeille."
-            alert.addButton(withTitle: "Garder les deux")
-            alert.addButton(withTitle: "Remplacer")
-            alert.addButton(withTitle: "Ignorer")
+            alert.messageText = "« \(target.lastPathComponent) » existe déjà dans « \(folder.lastPathComponent) »"
+            alert.informativeText = "Comparez les deux éléments, puis choisissez quoi faire."
+            alert.accessoryView = stack
+            alert.addButton(withTitle: "Continuer")
             alert.addButton(withTitle: "Arrêter")
-            if hasMore {
-                alert.showsSuppressionButton = true
-                alert.suppressionButton?.title = "Appliquer à tous"
-            }
             let response = alert.runModal()
-            let all = alert.suppressionButton?.state == .on
-            switch response {
-            case .alertFirstButtonReturn: return (.keepBoth, all)
-            case .alertSecondButtonReturn: return (.replace, all)
-            case .alertThirdButtonReturn: return (.skip, all)
-            default: return (.stop, false)
-            }
+            _ = group
+            guard response == .alertFirstButtonReturn else { return (.stop, false) }
+            let index = radios.firstIndex { $0.state == .on } ?? 0
+            return (options[index].1, all.state == .on)
         }
     }
 
@@ -559,5 +680,23 @@ extension FileOperationCenter {
             if x != y { throw mismatch }
             if x.isEmpty { return }
         }
+    }
+}
+
+/// Relie des boutons radio créés hors d'une matrice : cocher l'un décoche les autres.
+private final class RadioGroup: NSObject {
+    private let buttons: [NSButton]
+
+    init(_ buttons: [NSButton]) {
+        self.buttons = buttons
+        super.init()
+        for button in buttons {
+            button.target = self
+            button.action = #selector(select(_:))
+        }
+    }
+
+    @objc private func select(_ sender: NSButton) {
+        for button in buttons { button.state = button === sender ? .on : .off }
     }
 }
