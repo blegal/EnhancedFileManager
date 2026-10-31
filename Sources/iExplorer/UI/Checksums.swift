@@ -1,66 +1,129 @@
 import AppKit
 import CryptoKit
 
-/// Algorithmes d'empreinte proposés (MD5 et SHA-1 pour la compatibilité, SHA-256 par défaut).
+/// Algorithmes d'empreinte proposés (CRC32, MD5 et SHA-1 pour la compatibilité, SHA-256 par défaut).
 enum ChecksumAlgorithm: String, CaseIterable {
-    case md5 = "MD5", sha1 = "SHA-1", sha256 = "SHA-256"
+    case crc32 = "CRC32", md5 = "MD5", sha1 = "SHA-1", sha256 = "SHA-256", sha512 = "SHA-512"
 
+    /// Extension du fichier de somme posé à côté du fichier (« photo.jpg.sha256 », « photo.jpg.sfv »).
     var fileExtension: String {
         switch self {
+        case .crc32: "sfv"
         case .md5: "md5"
         case .sha1: "sha1"
         case .sha256: "sha256"
+        case .sha512: "sha512"
         }
     }
 
     /// Longueur de l'empreinte en hexadécimal : permet de reconnaître l'algorithme d'une empreinte collée.
     var hexLength: Int {
         switch self {
+        case .crc32: 8
         case .md5: 32
         case .sha1: 40
         case .sha256: 64
+        case .sha512: 128
         }
     }
 }
 
+/// CRC-32 (polynôme IEEE, celui des fichiers .sfv et du zip).
+struct CRC32 {
+    private static let table: [UInt32] = (0..<256).map { index in
+        (0..<8).reduce(UInt32(index)) { value, _ in value & 1 != 0 ? 0xEDB8_8320 ^ (value >> 1) : value >> 1 }
+    }
+    private var value: UInt32 = 0xFFFF_FFFF
+
+    mutating func update(data: Data) {
+        var crc = value
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+            for byte in bytes { crc = Self.table[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8) }
+        }
+        value = crc
+    }
+
+    var hex: String { String(format: "%08x", value ^ 0xFFFF_FFFF) }
+}
+
 enum Checksums {
-    static let listExtensions: Set<String> = ["md5", "sha1", "sha256"]
+    static let listExtensions: Set<String> = ["md5", "sha1", "sha256", "sha512", "sfv", "crc", "crc32"]
 
     struct Cancelled: Error {}
 
     /// Empreintes d'un fichier, lu par blocs de 1 Mo (les gros fichiers ne passent pas en mémoire).
-    static func compute(_ url: URL, progress: (Double) -> Void, isCancelled: () -> Bool) throws -> [ChecksumAlgorithm: String] {
+    static func compute(_ url: URL, algorithms: Set<ChecksumAlgorithm> = Set(ChecksumAlgorithm.allCases),
+                        progress: (Double) -> Void, isCancelled: () -> Bool) throws -> [ChecksumAlgorithm: String] {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         let total = Double((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
-        var md5 = Insecure.MD5(), sha1 = Insecure.SHA1(), sha256 = SHA256()
+        var crc = CRC32(), md5 = Insecure.MD5(), sha1 = Insecure.SHA1(), sha256 = SHA256(), sha512 = SHA512()
         var done = 0.0
         while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
             if isCancelled() { throw Cancelled() }
-            md5.update(data: chunk)
-            sha1.update(data: chunk)
-            sha256.update(data: chunk)
+            if algorithms.contains(.crc32) { crc.update(data: chunk) }
+            if algorithms.contains(.md5) { md5.update(data: chunk) }
+            if algorithms.contains(.sha1) { sha1.update(data: chunk) }
+            if algorithms.contains(.sha256) { sha256.update(data: chunk) }
+            if algorithms.contains(.sha512) { sha512.update(data: chunk) }
             done += Double(chunk.count)
             if total > 0 { progress(done / total) }
         }
         func hex<D: Sequence>(_ digest: D) -> String where D.Element == UInt8 { digest.map { String(format: "%02x", $0) }.joined() }
-        return [.md5: hex(md5.finalize()), .sha1: hex(sha1.finalize()), .sha256: hex(sha256.finalize())]
+        var result: [ChecksumAlgorithm: String] = [:]
+        if algorithms.contains(.crc32) { result[.crc32] = crc.hex }
+        if algorithms.contains(.md5) { result[.md5] = hex(md5.finalize()) }
+        if algorithms.contains(.sha1) { result[.sha1] = hex(sha1.finalize()) }
+        if algorithms.contains(.sha256) { result[.sha256] = hex(sha256.finalize()) }
+        if algorithms.contains(.sha512) { result[.sha512] = hex(sha512.finalize()) }
+        return result
     }
 
-    /// Lignes d'un fichier de sommes : « empreinte  nom », « empreinte *nom » (shasum, md5sum)
-    /// ou « SHA256 (nom) = empreinte » (format BSD de macOS).
+    /// Lignes d'un fichier de sommes : « empreinte  nom », « empreinte *nom » (shasum, md5sum),
+    /// « SHA256 (nom) = empreinte » (format BSD de macOS) ou « nom CRC32 » (fichiers .sfv).
     static func parseList(_ text: String) -> [(hash: String, name: String)] {
         text.split(whereSeparator: \.isNewline).compactMap { raw in
             let line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix(";") else { return nil }
             if let open = line.firstIndex(of: "("), let close = line.range(of: ") = ", options: .backwards), open < close.lowerBound {
                 return (String(line[close.upperBound...]).lowercased(), String(line[line.index(after: open)..<close.lowerBound]))
             }
             let parts = line.split(separator: " ", maxSplits: 1)
-            guard parts.count == 2, parts[0].allSatisfy(\.isHexDigit) else { return nil }
-            var name = parts[1].trimmingCharacters(in: .whitespaces)
-            if name.hasPrefix("*") { name.removeFirst() }
-            return (parts[0].lowercased(), name)
+            if parts.count == 2, parts[0].allSatisfy(\.isHexDigit), algorithm(forHexLength: parts[0].count) != nil {
+                var name = parts[1].trimmingCharacters(in: .whitespaces)
+                if name.hasPrefix("*") { name.removeFirst() }
+                return (parts[0].lowercased(), name)
+            }
+            // SFV : le nom puis le CRC32 (8 chiffres hexadécimaux) en fin de ligne.
+            if let space = line.lastIndex(of: " ") {
+                let hash = line[line.index(after: space)...]
+                if hash.count == 8, hash.allSatisfy(\.isHexDigit) {
+                    return (hash.lowercased(), line[..<space].trimmingCharacters(in: .whitespaces))
+                }
+            }
+            return nil
         }
+    }
+
+    /// Fichier de somme posé à côté de `url` pour cet algorithme.
+    static func sidecar(for url: URL, _ algorithm: ChecksumAlgorithm) -> URL {
+        url.appendingPathExtension(algorithm.fileExtension)
+    }
+
+    /// Fichiers de somme déjà présents à côté de `url`.
+    static func existingSidecars(for url: URL) -> [(algorithm: ChecksumAlgorithm, url: URL)] {
+        ChecksumAlgorithm.allCases.compactMap { algorithm in
+            let candidate = sidecar(for: url, algorithm)
+            return FileManager.default.fileExists(atPath: candidate.path) ? (algorithm, candidate) : nil
+        }
+    }
+
+    /// Écrit le fichier de somme d'un fichier (format shasum, ou SFV pour le CRC32).
+    static func writeSidecar(for url: URL, _ algorithm: ChecksumAlgorithm, hash: String) throws -> URL {
+        let target = sidecar(for: url, algorithm)
+        let line = algorithm == .crc32 ? "\(url.lastPathComponent) \(hash.uppercased())\n" : "\(hash)  \(url.lastPathComponent)\n"
+        try line.write(to: target, atomically: true, encoding: .utf8)
+        return target
     }
 
     static func algorithm(forHexLength length: Int) -> ChecksumAlgorithm? {
@@ -68,7 +131,7 @@ enum Checksums {
     }
 }
 
-/// Fenêtre des sommes de contrôle : calcule MD5, SHA-1 et SHA-256 des fichiers choisis,
+/// Fenêtre des sommes de contrôle : calcule CRC32, MD5, SHA-1, SHA-256 et SHA-512 des fichiers choisis,
 /// vérifie une empreinte collée, ou contrôle un fichier de sommes (.sha256, .md5…).
 final class ChecksumWindowController: NSWindowController, NSWindowDelegate {
     private static var open: [ChecksumWindowController] = []
@@ -165,7 +228,7 @@ final class ChecksumWindowController: NSWindowController, NSWindowDelegate {
 
         var bottom: [NSView] = []
         if case .compute = mode {
-            verifyField.placeholderString = "Coller une empreinte pour la vérifier (MD5, SHA-1 ou SHA-256)"
+            verifyField.placeholderString = "Coller une empreinte pour la vérifier (CRC32, MD5, SHA-1, SHA-256 ou SHA-512)"
             verifyField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
             verifyField.target = self
             verifyField.action = #selector(verifyPasted)
@@ -364,5 +427,71 @@ private final class FlippedView: NSView {
 extension PanelViewController {
     @objc func showChecksums(_ sender: Any?) {
         ChecksumWindowController.show(files: selectedItems.filter { !$0.isNavigableDirectory }.map(\.url))
+    }
+
+    /// Menu « Créer une somme de contrôle » : un fichier « nom.ext.sha256 » (…) par fichier sélectionné.
+    func checksumMenuItems(for selection: [FileItem]) -> [NSMenuItem] {
+        let files = selection.filter { !$0.isNavigableDirectory && !Checksums.listExtensions.contains($0.url.pathExtension.lowercased()) }
+        guard !files.isEmpty else { return [] }
+        var items: [NSMenuItem] = []
+        let create = NSMenuItem(title: "Créer une somme de contrôle", action: nil, keyEquivalent: "")
+        create.image = NSImage(systemSymbolName: "number.square", accessibilityDescription: nil)
+        create.submenu = NSMenu()
+        for algorithm in ChecksumAlgorithm.allCases {
+            let entry = NSMenuItem(title: "\(algorithm.rawValue) (.\(algorithm.fileExtension))", action: #selector(createChecksumFiles(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = algorithm.rawValue
+            create.submenu?.addItem(entry)
+        }
+        items.append(create)
+        // Fichier de somme déjà présent à côté : proposer de valider.
+        if files.count == 1 {
+            for (algorithm, sidecar) in Checksums.existingSidecars(for: files[0].url) {
+                let validate = NSMenuItem(title: "Valider la somme \(algorithm.rawValue)", action: #selector(validateChecksumFile(_:)), keyEquivalent: "")
+                validate.target = self
+                validate.representedObject = sidecar
+                validate.image = NSImage(systemSymbolName: "checkmark.seal", accessibilityDescription: nil)
+                items.append(validate)
+            }
+        }
+        return items
+    }
+
+    @objc func validateChecksumFile(_ sender: NSMenuItem) {
+        guard let sidecar = sender.representedObject as? URL else { return }
+        ChecksumWindowController.show(files: [sidecar])
+    }
+
+    @objc func createChecksumFiles(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let algorithm = ChecksumAlgorithm(rawValue: raw) else { return }
+        let files = selectedItems.filter { !$0.isNavigableDirectory }.map(\.url)
+        let job = FileJob(title: "Sommes \(algorithm.rawValue) de \(files.count == 1 ? "« \(files[0].lastPathComponent) »" : "\(files.count) fichiers")")
+        job.setTotal(files.reduce(Int64(0)) { $0 + Int64((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) })
+        FileOperationCenter.shared.addJob(job)
+        let folder = currentURL
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var created: [URL] = []
+            var failures: [String] = []
+            var base: Int64 = 0
+            for url in files where !job.isCancelled {
+                job.waitIfPaused()
+                job.setStatus(url.lastPathComponent)
+                let size = Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                do {
+                    let hashes = try Checksums.compute(url, algorithms: [algorithm], progress: { job.setDone(base + Int64($0 * Double(size))) },
+                                                       isCancelled: { job.isCancelled })
+                    if let hash = hashes[algorithm] { created.append(try Checksums.writeSidecar(for: url, algorithm, hash: hash)) }
+                } catch is Checksums.Cancelled {
+                } catch {
+                    failures.append("\(url.lastPathComponent) : \(error.localizedDescription)")
+                }
+                base += size
+            }
+            DispatchQueue.main.async {
+                FileOperationCenter.shared.removeJob(job)
+                if !failures.isEmpty { FileOperationCenter.shared.showError(failures.joined(separator: "\n")) }
+                if let self, folder.isSameLocation(as: self.currentURL), !created.isEmpty { self.reload() }
+            }
+        }
     }
 }

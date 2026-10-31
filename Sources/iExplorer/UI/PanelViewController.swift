@@ -1612,6 +1612,7 @@ final class PanelViewController: NSViewController {
                 } else if splitCandidate != nil {
                     add("Découper le fichier…", #selector(splitFile(_:)), "scissors")
                 }
+                checksumMenuItems(for: selection).forEach(menu.addItem)
                 if selection.contains(where: { !$0.isNavigableDirectory }) {
                     let isList = selection.count == 1 && Checksums.listExtensions.contains(selection[0].url.pathExtension.lowercased())
                     add(isList ? "Vérifier les sommes de contrôle" : "Sommes de contrôle…", #selector(showChecksums(_:)), "number")
