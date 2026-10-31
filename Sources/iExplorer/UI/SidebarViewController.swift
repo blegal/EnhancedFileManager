@@ -239,7 +239,10 @@ final class SidebarViewController: NSViewController {
     }
 
     private static func recentItems() -> [SidebarItem] {
-        RecentFolders.all.filter(\.isExistingDirectory).prefix(recentCount).map { url in
+        // Les dossiers déjà en favoris n'y sont pas répétés.
+        let favorites = Preferences.sidebarFavorites ?? []
+        return RecentFolders.all.filter { url in url.isExistingDirectory && !favorites.contains { $0.isSameLocation(as: url) } }
+            .prefix(recentCount).map { url in
             let item = SidebarItem(kind: .location, title: BreadcrumbView.displayName(url), symbol: "clock", tint: .secondaryLabelColor, url: url)
             item.isRecent = true
             return item
