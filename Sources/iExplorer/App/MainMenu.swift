@@ -98,6 +98,8 @@ enum MainMenu {
             item("Ajouter aux favoris", #selector(Panel.addToFavorites(_:)), "t", [.command, .control]),
             item("Partager…", #selector(Panel.shareSelection(_:))),
             item("Sommes de contrôle…", #selector(Panel.showChecksums(_:)), "k", [.command, .control]),
+            item("Découper le fichier…", #selector(Panel.splitFile(_:))),
+            item("Réassembler les morceaux…", #selector(Panel.joinFiles(_:))),
             separator(),
             item("Renommer", #selector(Panel.renameSelection(_:)), functionKey(NSF2FunctionKey), []),
             item("Renommer par lot…", #selector(Panel.batchRename(_:)), "r", [.command, .control]),

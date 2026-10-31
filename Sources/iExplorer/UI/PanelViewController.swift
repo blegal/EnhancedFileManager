@@ -1086,6 +1086,11 @@ final class PanelViewController: NSViewController {
             navigate(to: folder.url)
             return
         }
+        // « nom.001 » : proposer de réassembler les morceaux.
+        if joinCandidate != nil {
+            joinFiles(nil)
+            return
+        }
         // Une archive seule s'ouvre comme un dossier (« Ouvrir avec » garde l'utilitaire d'archive).
         if selection.count == 1, ArchiveBrowser.canBrowse(selection[0].url) {
             let archive = selection[0].url
@@ -1560,6 +1565,11 @@ final class PanelViewController: NSViewController {
                 }
                 menu.addItem(links)
                 menu.addItem(shareMenuItem(for: selection.map(\.url)))
+                if joinCandidate != nil {
+                    add("Réassembler les morceaux…", #selector(joinFiles(_:)), "square.stack.3d.up")
+                } else if splitCandidate != nil {
+                    add("Découper le fichier…", #selector(splitFile(_:)), "scissors")
+                }
                 if selection.contains(where: { !$0.isNavigableDirectory }) {
                     let isList = selection.count == 1 && Checksums.listExtensions.contains(selection[0].url.pathExtension.lowercased())
                     add(isList ? "Vérifier les sommes de contrôle" : "Sommes de contrôle…", #selector(showChecksums(_:)), "number")
@@ -1663,9 +1673,13 @@ extension PanelViewController: NSMenuItemValidation {
                                       #selector(runCustomAction(_:)),
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
                                       #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:)),
-                                      #selector(shareSelection(_:)), #selector(showChecksums(_:))]
+                                      #selector(shareSelection(_:)), #selector(showChecksums(_:)), #selector(splitFile(_:)), #selector(joinFiles(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
+        case #selector(splitFile(_:)):
+            return splitCandidate != nil
+        case #selector(joinFiles(_:)):
+            return joinCandidate != nil
         case #selector(showChecksums(_:)):
             return selectedItems.contains { !$0.isNavigableDirectory }
         case #selector(symlinkHere(_:)), #selector(symlinkInOtherPanel(_:)):
