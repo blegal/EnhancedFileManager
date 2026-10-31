@@ -7,6 +7,7 @@ private extension NSToolbarItem.Identifier {
     static let layout = NSToolbarItem.Identifier("layout")
     static let iconTheme = NSToolbarItem.Identifier("iconTheme")
     static let colorTheme = NSToolbarItem.Identifier("colorTheme")
+    static let appearance = NSToolbarItem.Identifier("appearance")
     static let viewMode = NSToolbarItem.Identifier("viewMode")
     static let diskUsage = NSToolbarItem.Identifier("diskUsage")
     static let syncNavigation = NSToolbarItem.Identifier("syncNavigation")
@@ -351,7 +352,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             window.center()
         }
 
-        let toolbar = NSToolbar(identifier: "MainToolbar.v8")
+        let toolbar = NSToolbar(identifier: "MainToolbar.v9")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
@@ -530,8 +531,24 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     }
 
     private func updateIconThemeMenu() {
-        guard let item = window?.toolbar?.items.first(where: { $0.itemIdentifier == .iconTheme }) as? NSMenuToolbarItem else { return }
-        item.menu = Self.iconThemeMenu()
+        for item in window?.toolbar?.items ?? [] {
+            guard let item = item as? NSMenuToolbarItem else { continue }
+            if item.itemIdentifier == .iconTheme { item.menu = Self.iconThemeMenu() }
+            if item.itemIdentifier == .appearance { item.menu = Self.appearanceMenu() }
+        }
+    }
+
+    /// Bouton Thèmes : un sous-menu pour les couleurs, un pour les icônes.
+    static func appearanceMenu() -> NSMenu {
+        let menu = NSMenu(title: "Thèmes")
+        for (title, symbol, submenu) in [("Couleurs et apparence", "swatchpalette", ColorTheme.menu()),
+                                         ("Icônes de fichiers", "folder", iconThemeMenu())] {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            item.submenu = submenu
+            menu.addItem(item)
+        }
+        return menu
     }
 
     /// Menu des thèmes d'icônes, chacun illustré par son icône de dossier.
@@ -607,12 +624,16 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     // MARK: Barre d'outils
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        // Par groupes : affichage du panneau, fichiers, outils, fenêtre.
         [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace,
-         .viewMode, .diskUsage, .layout, .syncNavigation, .iconTheme, .colorTheme, .space, .newFolder, .quickLook, .trash, .space, .git, .terminal, .hidden, .connect, .inspector, .updates]
+         .viewMode, .layout, .hidden, .syncNavigation, .space,
+         .newFolder, .quickLook, .trash, .space,
+         .git, .diskUsage, .terminal, .connect, .space,
+         .inspector, .appearance, .updates]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar) + [.back, .forward, .flexibleSpace, .space]
+        toolbarDefaultItemIdentifiers(toolbar) + [.back, .forward, .colorTheme, .iconTheme, .flexibleSpace, .space]
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
@@ -645,9 +666,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         case .newFolder: return button("Nouveau dossier", "folder.badge.plus", #selector(PanelViewController.newFolder(_:)), tip: "Nouveau dossier (⇧⌘N)")
         case .quickLook: return button("Coup d’œil", "eye", #selector(PanelViewController.quickLook(_:)), tip: "Coup d’œil sur la sélection (Espace ou ⌘Y)")
         case .trash: return button("Corbeille", "trash", #selector(PanelViewController.moveToTrash(_:)), tip: "Placer la sélection dans la corbeille (⌘⌫)")
-        case .hidden: return button("Fichiers cachés", "eye.slash", #selector(AppDelegate.toggleHiddenFiles(_:)), tip: "Afficher ou masquer les fichiers cachés (⇧⌘.)")
+        case .hidden: return button("Fichiers cachés", "doc.badge.ellipsis", #selector(AppDelegate.toggleHiddenFiles(_:)), tip: "Afficher ou masquer les fichiers cachés (⇧⌘.)")
         case .connect: return button("Se connecter au serveur", "network", #selector(connectToServer(_:)), tip: "Se connecter à un serveur SFTP, SMB, WebDAV… (⌘K)")
-        case .inspector: return button("Inspecteur", "sidebar.right", #selector(toggleInspectorPane(_:)), tip: "Afficher ou masquer l’inspecteur (⌥⌘I)")
+        case .inspector: return button("Inspecteur", "info.circle", #selector(toggleInspectorPane(_:)), tip: "Afficher ou masquer l’inspecteur (⌥⌘I)")
         case .updates:
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = UpdateStatusButton()
@@ -722,10 +743,19 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             item.toolTip = "Thème de couleurs et apparence claire / sombre"
             item.showsIndicator = true
             return item
+        case .appearance:
+            // Couleurs et icônes réunies derrière un seul bouton.
+            let item = NSMenuToolbarItem(itemIdentifier: identifier)
+            item.menu = Self.appearanceMenu()
+            item.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: "Thèmes")
+            item.label = "Thèmes"
+            item.toolTip = "Thèmes : couleurs (et clair / sombre) et icônes de fichiers"
+            item.showsIndicator = true
+            return item
         case .iconTheme:
             let item = NSMenuToolbarItem(itemIdentifier: identifier)
             item.menu = Self.iconThemeMenu()
-            item.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: "Thème d’icônes")
+            item.image = NSImage(systemSymbolName: "folder.badge.gearshape", accessibilityDescription: "Thème d’icônes")
             item.label = "Thème d’icônes"
             item.toolTip = "Thème des icônes de fichiers et de dossiers"
             item.showsIndicator = true
