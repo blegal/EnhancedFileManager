@@ -1086,6 +1086,11 @@ final class PanelViewController: NSViewController {
             navigate(to: folder.url)
             return
         }
+        // Fichier chiffré (.aes256, .chacha20) : proposer de le déchiffrer.
+        if !encryptedFiles.isEmpty, encryptedFiles.count == selection.count {
+            decryptFiles(nil)
+            return
+        }
         // « nom.001 » : proposer de réassembler les morceaux.
         if joinCandidate != nil {
             joinFiles(nil)
@@ -1613,6 +1618,11 @@ final class PanelViewController: NSViewController {
                     add("Découper le fichier…", #selector(splitFile(_:)), "scissors")
                 }
                 checksumMenuItems(for: selection).forEach(menu.addItem)
+                if !encryptedFiles.isEmpty {
+                    add("Déchiffrer…", #selector(decryptFiles(_:)), "lock.open")
+                } else if !encryptableFiles.isEmpty {
+                    add("Chiffrer…", #selector(encryptFiles(_:)), "lock.shield")
+                }
                 if selection.contains(where: { !$0.isNavigableDirectory }) {
                     let isList = selection.count == 1 && Checksums.listExtensions.contains(selection[0].url.pathExtension.lowercased())
                     add(isList ? "Vérifier les sommes de contrôle" : "Sommes de contrôle…", #selector(showChecksums(_:)), "number")
@@ -1718,9 +1728,13 @@ extension PanelViewController: NSMenuItemValidation {
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
                                       #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:)),
                                       #selector(shareSelection(_:)), #selector(showChecksums(_:)), #selector(splitFile(_:)), #selector(joinFiles(_:)),
-                                      #selector(compressWithPassword(_:))]
+                                      #selector(compressWithPassword(_:)), #selector(encryptFiles(_:)), #selector(decryptFiles(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
+        case #selector(encryptFiles(_:)):
+            return !encryptableFiles.isEmpty
+        case #selector(decryptFiles(_:)):
+            return !encryptedFiles.isEmpty
         case #selector(splitFile(_:)):
             return splitCandidate != nil
         case #selector(joinFiles(_:)):

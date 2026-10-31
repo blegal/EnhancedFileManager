@@ -111,6 +111,8 @@ enum MainMenu {
             separator(),
             item("Compresser", #selector(Panel.compressSelection(_:)), "k", [.command, .option]),
             item("Compresser avec un mot de passe…", #selector(Panel.compressWithPassword(_:)), "k", [.command, .option, .shift]),
+            item("Chiffrer…", #selector(Panel.encryptFiles(_:)), "e", [.command, .control, .option]),
+            item("Déchiffrer…", #selector(Panel.decryptFiles(_:)), "d", [.command, .control, .option]),
             item("Décompresser ici", #selector(Panel.extractHere(_:)), "e", [.command, .option]),
             item("Décompresser vers l’autre panneau", #selector(Panel.extractToOtherPanel(_:)), "e", [.command, .option, .shift]),
             separator(),
