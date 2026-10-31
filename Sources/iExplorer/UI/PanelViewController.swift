@@ -329,6 +329,7 @@ final class PanelViewController: NSViewController {
             if identifier == .size { column.headerCell.alignment = .right }
             tableView.addTableColumn(column)
         }
+        addMetadataColumns()
         tableView.style = .inset
         tableView.rowHeight = 24
         tableView.intercellSpacing = NSSize(width: 10, height: 0)
@@ -413,7 +414,10 @@ final class PanelViewController: NSViewController {
         browser.isHidden = isShowingDiskUsage || viewMode != .columns
         diskUsageView.isHidden = !isShowingDiskUsage
         let compact = viewMode == .list
-        for column in tableView.tableColumns where column.identifier != .name { column.isHidden = compact }
+        let extra = MetadataColumn.visible
+        for column in tableView.tableColumns where column.identifier != .name {
+            column.isHidden = compact || MetadataColumn(identifier: column.identifier).map { !extra.contains($0) } ?? false
+        }
         tableView.rowHeight = ((compact ? 22 : 24) * listScale).rounded()
         updateGridItemSize()
         postStatusChange()
@@ -1744,6 +1748,13 @@ extension PanelViewController: NSTableViewDataSource, NSTableViewDelegate {
         let field = cell.textField!
         let textSize = (12 * listScale).rounded()
         if field.font?.pointSize != textSize { field.font = .monospacedDigitSystemFont(ofSize: textSize, weight: .regular) }
+        if let column = MetadataColumn(identifier: identifier) {
+            field.stringValue = metadataText(column, for: item)
+            field.alignment = column == .duration || column == .pages ? .right : .left
+            field.toolTip = field.stringValue.isEmpty ? nil : field.stringValue
+            cell.alphaValue = dimmed ? 0.5 : 1
+            return cell
+        }
         switch identifier {
         case .size:
             field.stringValue = item.isNavigableDirectory ? folderSizeText(for: item) : (item.size.map(Format.size) ?? "—")
