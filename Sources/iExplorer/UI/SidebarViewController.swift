@@ -41,6 +41,7 @@ final class SidebarViewController: NSViewController {
     private var sections: [SidebarItem] = []
     private weak var favoritesSection: SidebarItem?
     private var isRebuilding = false
+    private var isRestoringExpansion = false
 
     override func loadView() {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("main"))
@@ -162,10 +163,12 @@ final class SidebarViewController: NSViewController {
             return initial
         }()
         let style = Self.favoriteStyles()
+        let names = Preferences.favoriteNames
         favorites.children = urls.filter(\.isExistingDirectory).map { url in
             let match = style[url.standardizedFileURL.path]
             let isICloud = url.path.contains("Mobile Documents/com~apple~CloudDocs")
-            let item = SidebarItem(kind: .location, title: match?.title ?? FileManager.default.displayName(atPath: url.path),
+            let title = names[url.standardizedFileURL.path] ?? match?.title ?? FileManager.default.displayName(atPath: url.path)
+            let item = SidebarItem(kind: .location, title: title,
                                    symbol: match?.symbol ?? (isICloud ? "icloud" : "folder"),
                                    tint: match?.tint ?? (isICloud ? .systemCyan : .systemTeal), url: url)
             item.isCustomFavorite = true
@@ -220,8 +223,11 @@ final class SidebarViewController: NSViewController {
             SidebarItem(kind: .tag, title: standard.name, symbol: "circle.fill", tint: standard.color)
         }
         sections = [favorites, devices, network, tags]
+        isRestoringExpansion = true
         outlineView.reloadData()
-        sections.forEach { outlineView.expandItem($0) }
+        let collapsed = Preferences.collapsedSidebarSections
+        sections.filter { !collapsed.contains($0.title) }.forEach { outlineView.expandItem($0) }
+        isRestoringExpansion = false
     }
 
     /// Met en surbrillance l'entrée correspondant au dossier du panneau actif.
@@ -280,7 +286,64 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func resetFavorites(_ sender: NSMenuItem) {
+        let alert = NSAlert()
+        alert.messageText = "Rétablir les favoris par défaut ?"
+        alert.informativeText = "Vos ajouts, votre ordre et vos noms personnalisés seront remplacés par les favoris du Finder (ou les dossiers standard)."
+        alert.addButton(withTitle: "Rétablir")
+        alert.addButton(withTitle: "Annuler")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Preferences.favoriteNames = [:]
         Preferences.sidebarFavorites = Self.defaultFavorites()
+    }
+
+    /// Bouton « + » de la section Favoris et menu « Ajouter des dossiers… ».
+    @objc func addFavoriteFolders(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Ajouter aux favoris"
+        panel.message = "Choisissez les dossiers à ajouter à la barre latérale."
+        guard let window = view.window else { return }
+        panel.beginSheetModal(for: window) { response in
+            if response == .OK { Preferences.addFavorites(panel.urls) }
+        }
+    }
+
+    /// Ajoute les favoris du Finder qui manquent (la lecture demande l'accès complet au disque).
+    @objc private func importFinderFavorites(_ sender: NSMenuItem) {
+        guard let entries = FinderFavorites.load() else { FinderFavorites.showDiagnostic(); return }
+        Preferences.addFavorites(entries.map(\.url))
+    }
+
+    @objc private func renameFavorite(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        let path = url.standardizedFileURL.path
+        let current = favoritesSection?.children.first { $0.url?.isSameLocation(as: url) == true }?.title ?? url.lastPathComponent
+        let alert = NSAlert()
+        alert.messageText = "Renommer le favori"
+        alert.informativeText = "Le dossier lui-même n’est pas renommé. Laissez vide pour reprendre son nom."
+        let field = NSTextField(string: current)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Renommer")
+        alert.addButton(withTitle: "Annuler")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespaces)
+        var names = Preferences.favoriteNames
+        names[path] = name.isEmpty ? nil : name
+        Preferences.favoriteNames = names
+    }
+
+    @objc private func moveFavoriteUp(_ sender: NSMenuItem) { shiftFavorite(sender, by: -1) }
+    @objc private func moveFavoriteDown(_ sender: NSMenuItem) { shiftFavorite(sender, by: 1) }
+
+    private func shiftFavorite(_ sender: NSMenuItem, by offset: Int) {
+        guard let url = sender.representedObject as? URL,
+              let index = (Preferences.sidebarFavorites ?? []).firstIndex(where: { $0.isSameLocation(as: url) }) else { return }
+        // moveFavorite insère avant l'index donné : descendre d'un cran, c'est viser deux places plus bas.
+        Preferences.moveFavorite(url, to: max(0, index + (offset > 0 ? 2 : -1)))
     }
 
     @objc private func connectSaved(_ sender: NSMenuItem) {
@@ -328,6 +391,17 @@ extension SidebarViewController: NSOutlineViewDataSource, NSOutlineViewDelegate 
         (item as? SidebarItem)?.kind == .section
     }
 
+    func outlineViewItemDidCollapse(_ notification: Notification) { rememberExpansion(notification, collapsed: true) }
+    func outlineViewItemDidExpand(_ notification: Notification) { rememberExpansion(notification, collapsed: false) }
+
+    /// Une section repliée par l'utilisateur le reste d'un lancement à l'autre.
+    private func rememberExpansion(_ notification: Notification, collapsed: Bool) {
+        guard !isRestoringExpansion, let section = notification.userInfo?["NSObject"] as? SidebarItem, section.kind == .section else { return }
+        var sections = Preferences.collapsedSidebarSections
+        if collapsed { sections.insert(section.title) } else { sections.remove(section.title) }
+        Preferences.collapsedSidebarSections = sections
+    }
+
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
         let kind = (item as? SidebarItem)?.kind
         return kind == .location || kind == .volume
@@ -358,6 +432,21 @@ extension SidebarViewController: NSOutlineViewDataSource, NSOutlineViewDelegate 
                 field.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
                 field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             ])
+            if item === favoritesSection {
+                // « + » : ajouter des dossiers (on peut aussi les glisser dans la section).
+                let add = NSButton(image: NSImage(systemSymbolName: "plus", accessibilityDescription: "Ajouter des favoris")!,
+                                   target: self, action: #selector(addFavoriteFolders(_:)))
+                add.isBordered = false
+                add.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
+                add.contentTintColor = Theme.secondaryText
+                add.toolTip = "Ajouter des dossiers aux favoris — ou glissez-les ici ; clic droit pour renommer, réordonner, retirer"
+                add.translatesAutoresizingMaskIntoConstraints = false
+                cell.addSubview(add)
+                NSLayoutConstraint.activate([
+                    add.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                    add.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                ])
+            }
             return cell
         }
         return SidebarCell(item: item, target: self, ejectAction: #selector(eject(_:)))
@@ -423,10 +512,14 @@ extension SidebarViewController: NSMenuDelegate {
             menu.addItem(open)
         }
         if item === favoritesSection {
-            let reset = NSMenuItem(title: "Rétablir les favoris par défaut", action: #selector(resetFavorites(_:)), keyEquivalent: "")
-            reset.target = self
-            reset.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
-            menu.addItem(reset)
+            for (title, action, symbol) in [("Ajouter des dossiers…", #selector(addFavoriteFolders(_:)), "plus"),
+                                            ("Importer les favoris du Finder", #selector(importFinderFavorites(_:)), "square.and.arrow.down"),
+                                            ("Rétablir les favoris par défaut…", #selector(resetFavorites(_:)), "arrow.counterclockwise")] {
+                let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
+                entry.target = self
+                entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+                menu.addItem(entry)
+            }
         }
         if item.kind == .volume, item.sftpEndpoint == nil, let url = item.url {
             let analyze = NSMenuItem(title: "Analyser l’espace disque", action: #selector(analyzeVolume(_:)), keyEquivalent: "")
@@ -449,11 +542,19 @@ extension SidebarViewController: NSMenuDelegate {
             menu.addItem(mount)
         }
         if item.isCustomFavorite, let url = item.url {
-            let remove = NSMenuItem(title: "Retirer de la barre latérale", action: #selector(removeFavorite(_:)), keyEquivalent: "")
-            remove.target = self
-            remove.representedObject = url
-            remove.image = NSImage(systemSymbolName: "star.slash", accessibilityDescription: nil)
-            menu.addItem(remove)
+            let favorites = favoritesSection?.children ?? []
+            let index = favorites.firstIndex { $0 === item } ?? 0
+            menu.addItem(.separator())
+            for (title, action, symbol, enabled) in [("Renommer…", #selector(renameFavorite(_:)), "pencil", true),
+                                                     ("Monter", #selector(moveFavoriteUp(_:)), "arrow.up", index > 0),
+                                                     ("Descendre", #selector(moveFavoriteDown(_:)), "arrow.down", index < favorites.count - 1),
+                                                     ("Retirer de la barre latérale", #selector(removeFavorite(_:)), "star.slash", true)] {
+                let entry = NSMenuItem(title: title, action: enabled ? action : nil, keyEquivalent: "")
+                entry.target = self
+                entry.representedObject = url
+                entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+                menu.addItem(entry)
+            }
         }
         if let connection = item.connection {
             for (title, action, symbol) in [("Se connecter", #selector(connectSaved(_:)), "link"), ("Modifier…", #selector(editConnection(_:)), "pencil"),

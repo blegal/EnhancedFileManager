@@ -74,6 +74,21 @@ enum Preferences {
         sidebarFavorites = favorites
     }
 
+    /// Noms choisis pour les favoris (chemin → nom), à la place du nom du dossier.
+    static var favoriteNames: [String: String] {
+        get { defaults.dictionary(forKey: "favoriteNames") as? [String: String] ?? [:] }
+        set {
+            defaults.set(newValue, forKey: "favoriteNames")
+            NotificationCenter.default.post(name: favoritesChanged, object: nil)
+        }
+    }
+
+    /// Sections repliées de la barre latérale (par titre).
+    static var collapsedSidebarSections: Set<String> {
+        get { Set(defaults.stringArray(forKey: "collapsedSidebarSections") ?? []) }
+        set { defaults.set(Array(newValue), forKey: "collapsedSidebarSections") }
+    }
+
     static var recentServers: [String] {
         get { defaults.stringArray(forKey: "recentServers") ?? [] }
         set {
