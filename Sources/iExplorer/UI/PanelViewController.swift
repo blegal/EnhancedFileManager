@@ -132,6 +132,8 @@ final class PanelViewController: NSViewController {
     private let gitLabel = NSTextField(labelWithString: "")
     /// Précédent / suivant de l'onglet, en haut à droite du panneau (appui long : tout l'historique).
     private let navigationControl = NSSegmentedControl()
+    /// Bascule fichiers / occupation du disque, à gauche des flèches.
+    private let diskUsageToggle = NSButton()
     private lazy var backMenu = HistoryMenuProvider(kind: .back) { [weak self] in self }
     private lazy var forwardMenu = HistoryMenuProvider(kind: .forward) { [weak self] in self }
     private var gitStatus: GitRepositoryStatus?
@@ -227,7 +229,7 @@ final class PanelViewController: NSViewController {
         titles.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         gitLabel.isHidden = true
         configureNavigationControl()
-        let header = NSStackView(views: [titles, gitLabel, navigationControl])
+        let header = NSStackView(views: [titles, gitLabel, diskUsageToggle, navigationControl])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 10
@@ -619,6 +621,21 @@ final class PanelViewController: NSViewController {
         }
         navigationControl.setContentHuggingPriority(.required, for: .horizontal)
         navigationControl.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        diskUsageToggle.image = NSImage(systemSymbolName: "chart.pie", accessibilityDescription: "Occupation du disque")
+        diskUsageToggle.setButtonType(.pushOnPushOff)
+        diskUsageToggle.bezelStyle = .accessoryBarAction
+        diskUsageToggle.controlSize = .small
+        diskUsageToggle.target = self
+        diskUsageToggle.action = #selector(diskUsageToggleClicked(_:))
+        diskUsageToggle.toolTip = "Occupation du disque (⌘5) — cliquer de nouveau pour revenir aux fichiers"
+        diskUsageToggle.setContentHuggingPriority(.required, for: .horizontal)
+        diskUsageToggle.setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+
+    @objc private func diskUsageToggleClicked(_ sender: NSButton) {
+        activate(focusTable: false)
+        toggleDiskUsage(sender)
     }
 
     @objc private func navigationClicked(_ sender: NSSegmentedControl) {
@@ -629,6 +646,8 @@ final class PanelViewController: NSViewController {
     func updateNavigationControl() {
         navigationControl.setEnabled(!tab.back.isEmpty, forSegment: 0)
         navigationControl.setEnabled(!tab.forward.isEmpty, forSegment: 1)
+        diskUsageToggle.state = isShowingDiskUsage ? .on : .off
+        diskUsageToggle.isEnabled = !currentURL.isRemote
     }
 
     func updateTabBar() {

@@ -352,7 +352,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             window.center()
         }
 
-        let toolbar = NSToolbar(identifier: "MainToolbar.v9")
+        let toolbar = NSToolbar(identifier: "MainToolbar.v10")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
@@ -628,12 +628,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace,
          .viewMode, .layout, .hidden, .syncNavigation, .space,
          .newFolder, .quickLook, .trash, .space,
-         .git, .diskUsage, .terminal, .connect, .space,
+         .git, .terminal, .connect, .space,
          .inspector, .appearance, .updates]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar) + [.back, .forward, .colorTheme, .iconTheme, .flexibleSpace, .space]
+        toolbarDefaultItemIdentifiers(toolbar) + [.back, .forward, .diskUsage, .colorTheme, .iconTheme, .flexibleSpace, .space]
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,

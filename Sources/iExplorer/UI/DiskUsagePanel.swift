@@ -1,9 +1,11 @@
 import AppKit
 
 /// Mode « Occupation du disque » d'un panneau (⌘5) : le dossier courant est analysé et affiché
-/// en carte épurée par défaut ; la navigation reste celle du panneau (fil d'Ariane, historique, onglets).
+/// en « Liste et soleil » par défaut ; la navigation reste celle du panneau (fil d'Ariane, historique, onglets).
 extension PanelViewController {
     func configureDiskUsage() {
+        // Vue par défaut ; le style choisi ensuite est gardé tant que le panneau existe.
+        diskUsageView.style = .baobab
         diskUsageView.onNavigate = { [weak self] url in self?.navigate(to: url) }
         diskUsageView.onUp = { [weak self] in self?.goUp(nil) }
         diskUsageView.onExit = { [weak self] in self?.setDiskUsageVisible(false) }
@@ -41,13 +43,13 @@ extension PanelViewController {
         if isSearching { endSearch() }
         isShowingDiskUsage = visible
         if visible {
-            diskUsageView.style = .flat
             showDiskUsage()
         } else {
             // Libère l'arbre analysé (mémoire).
             diskUsageView.stop()
         }
         applyViewMode()
+        updateNavigationControl()
         view.window?.makeFirstResponder(focusView)
         host?.panelDidChangeDirectory(self)
     }
