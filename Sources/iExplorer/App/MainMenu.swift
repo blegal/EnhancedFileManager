@@ -109,6 +109,10 @@ enum MainMenu {
             item("Copier le chemin", #selector(Panel.copyPath(_:)), "c", [.command, .option]),
             separator(),
             item("Tout sélectionner", #selector(NSResponder.selectAll(_:)), "a"),
+            item("Sélectionner selon un motif…", #selector(Panel.selectByPattern(_:)), "a", [.command, .option]),
+            item("Désélectionner selon un motif…", #selector(Panel.deselectByPattern(_:)), "a", [.command, .option, .shift]),
+            item("Inverser la sélection", #selector(Panel.invertSelection(_:)), "i", [.command, .control]),
+            item("Sélectionner les éléments du même type", #selector(Panel.selectSameType(_:))),
             separator(),
             item("Rechercher…", #selector(Panel.showSearch(_:)), "f"),
         ])

@@ -1601,7 +1601,7 @@ extension PanelViewController: NSMenuItemValidation {
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)), #selector(moveToTrash(_:)),
-             #selector(openSelection(_:)), #selector(quickLook(_:)), #selector(shareSelection(_:)):
+             #selector(openSelection(_:)), #selector(quickLook(_:)), #selector(shareSelection(_:)), #selector(selectSameType(_:)):
             return hasSelection
         case #selector(compressSelection(_:)):
             return hasSelection
