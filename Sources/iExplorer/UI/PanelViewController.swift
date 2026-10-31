@@ -1406,6 +1406,48 @@ final class PanelViewController: NSViewController {
         }
     }
 
+    /// Archive protégée : zip AES-256 toujours possible, 7z AES-256 (noms masqués) si 7-Zip est installé.
+    @objc func compressWithPassword(_ sender: Any?) {
+        let urls = selectedURLs
+        guard !urls.isEmpty, !currentURL.isRemote, let window = view.window else { return }
+        let hasSevenZip = FileOperationCenter.sevenZip != nil
+        let alert = NSAlert()
+        alert.messageText = "Compresser avec un mot de passe"
+        alert.informativeText = hasSevenZip
+            ? "zip : s’ouvre avec 7-Zip, WinRAR, Keka ou The Unarchiver. 7z : 7-Zip peut aussi masquer les noms des fichiers."
+            : "Le zip chiffré s’ouvre avec 7-Zip, WinRAR, Keka ou The Unarchiver. Installez 7-Zip (brew install sevenzip) pour le format 7z."
+        let format = NSPopUpButton(frame: NSRect(x: 0, y: 86, width: 300, height: 26))
+        format.addItems(withTitles: ["zip chiffré (AES-256)", "7z chiffré (AES-256)"])
+        format.autoenablesItems = false
+        format.item(at: 1)?.isEnabled = hasSevenZip
+        let password = NSSecureTextField(frame: NSRect(x: 0, y: 56, width: 300, height: 24))
+        password.placeholderString = "Mot de passe"
+        let confirm = NSSecureTextField(frame: NSRect(x: 0, y: 26, width: 300, height: 24))
+        confirm.placeholderString = "Confirmer le mot de passe"
+        let hideNames = NSButton(checkboxWithTitle: "Masquer les noms des fichiers (7z)", target: nil, action: nil)
+        hideNames.frame = NSRect(x: 0, y: 0, width: 300, height: 20)
+        hideNames.state = .on
+        hideNames.isEnabled = hasSevenZip
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 114))
+        [format, password, confirm, hideNames].forEach(accessory.addSubview)
+        alert.accessoryView = accessory
+        alert.addButton(withTitle: "Compresser")
+        alert.addButton(withTitle: "Annuler")
+        alert.window.initialFirstResponder = password
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            guard !password.stringValue.isEmpty, password.stringValue == confirm.stringValue else {
+                FileOperationCenter.shared.showError(password.stringValue.isEmpty ? "Le mot de passe est vide." : "Les deux mots de passe ne correspondent pas.")
+                return
+            }
+            let sevenZ = format.indexOfSelectedItem == 1
+            FileOperationCenter.shared.compressEncrypted(urls, sevenZ: sevenZ, hideNames: sevenZ && hideNames.state == .on,
+                                                         password: password.stringValue, undoManager: undoManager) { [weak self] archive in
+                if let archive { self?.reload(selecting: [archive]) }
+            }
+        }
+    }
+
     @objc func extractHere(_ sender: Any?) { extract(into: self) }
 
     @objc func extractToOtherPanel(_ sender: Any?) {
@@ -1576,6 +1618,7 @@ final class PanelViewController: NSViewController {
                 }
                 let name = selection.count == 1 ? "« \(selection[0].name) »" : "\(selection.count) éléments"
                 add("Compresser \(name)", #selector(compressSelection(_:)), "archivebox")
+                add("Compresser avec un mot de passe…", #selector(compressWithPassword(_:)), "lock")
                 let formats = NSMenuItem(title: "Compresser au format", action: nil, keyEquivalent: "")
                 formats.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
                 formats.submenu = NSMenu()
@@ -1673,7 +1716,8 @@ extension PanelViewController: NSMenuItemValidation {
                                       #selector(runCustomAction(_:)),
                                       #selector(compressSelection(_:)), #selector(extractHere(_:)), #selector(extractToOtherPanel(_:)),
                                       #selector(quickLook(_:)), #selector(showPackageContents(_:)), #selector(newDocument(_:)),
-                                      #selector(shareSelection(_:)), #selector(showChecksums(_:)), #selector(splitFile(_:)), #selector(joinFiles(_:))]
+                                      #selector(shareSelection(_:)), #selector(showChecksums(_:)), #selector(splitFile(_:)), #selector(joinFiles(_:)),
+                                      #selector(compressWithPassword(_:))]
         if currentURL.isRemote, localOnly.contains(menuItem.action) { return false }
         switch menuItem.action {
         case #selector(splitFile(_:)):
@@ -1689,7 +1733,7 @@ extension PanelViewController: NSMenuItemValidation {
         case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)), #selector(moveToTrash(_:)),
              #selector(openSelection(_:)), #selector(quickLook(_:)), #selector(shareSelection(_:)), #selector(selectSameType(_:)):
             return hasSelection
-        case #selector(compressSelection(_:)):
+        case #selector(compressSelection(_:)), #selector(compressWithPassword(_:)):
             return hasSelection
         case #selector(extractHere(_:)):
             return selectedURLs.contains(where: FileOperationCenter.isArchive)
